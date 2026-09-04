@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CRIBBAGE_STYLE_SUGGESTION, VariantEditor } from "./VariantEditor";
-import { gameVariants, tagPool, type Game, type Variant } from "@/lib/types";
+import { gameVariants, tagPool, type Game, type RatingDimension, type Variant } from "@/lib/types";
 
 /**
  * Post-hoc config tweaks (§11: "sanity-check the wizard questions against real
@@ -13,7 +13,14 @@ export function GameConfigEditor({ game }: { game: Game }) {
   const router = useRouter();
   const [name, setName] = useState(game.name);
   const [tagText, setTagText] = useState(tagPool(game).join(", "));
-  const [tagLabel, setTagLabel] = useState(game.tag_label ?? "");
+  const [tagLabel, setTagLabel] = useState(game.tag_label ?? "Role");
+  // Dimension itself only moves off "none" here — a game that already rates
+  // by role/faction keeps that shape fixed, same as scoring_mode. Turning
+  // tags on for the first time is safe: sessions logged before today just
+  // have no tag, so they're skipped by the new pool rather than misfiled
+  // into it (see replayRatings()) — the overall leaderboard never changes.
+  const [dimension, setDimension] = useState<RatingDimension>(game.rating_dimension);
+  const [tagsPerPlayer, setTagsPerPlayer] = useState(game.tags_per_player || 1);
   const [tracksScore, setTracksScore] = useState(!!game.tracks_score);
   const [allowsTeams, setAllowsTeams] = useState(!!game.allows_teams);
   const [resultMode, setResultMode] = useState(game.result_mode);
@@ -35,11 +42,13 @@ export function GameConfigEditor({ game }: { game: Game }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
+        rating_dimension: dimension,
         tag_label: tagLabel || null,
         tag_pool: tagText
           .split(/[,\n]/)
           .map((t) => t.trim())
           .filter(Boolean),
+        tags_per_player: dimension === "multi-tag" ? tagsPerPlayer : 1,
         tracks_score: tracksScore,
         high_score_wins: highScoreWins,
         tracks_difficulty: tracksDifficulty,
@@ -72,7 +81,83 @@ export function GameConfigEditor({ game }: { game: Game }) {
           <input id="g-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
 
-        {game.rating_dimension !== "none" && (
+        {game.rating_dimension === "none" ? (
+          <div className="rounded-xl border border-white/8 bg-ink-900/40 p-3">
+            <div className="label">Rate players by role or identity?</div>
+            <p className="mb-2 text-xs text-mist-400">
+              Splits the leaderboard into one ranking per role — e.g. a 2-vs-1 side each with its
+              own pool — on top of the overall leaderboard, which is untouched either way. Sessions
+              already logged won&apos;t retroactively get a role; only ones you tag from now on.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {(
+                [
+                  { v: "none" as const, t: "No", b: "Leave it as one rating per player." },
+                  { v: "single-tag" as const, t: "One role each", b: "e.g. Solo vs. Duo." },
+                  { v: "multi-tag" as const, t: "Several each", b: "e.g. multiple factions." },
+                ]
+              ).map((o) => (
+                <button
+                  key={o.v}
+                  onClick={() => setDimension(o.v)}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    dimension === o.v
+                      ? "border-grape-400/60 bg-grape-500/15"
+                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="text-sm font-semibold">{o.t}</div>
+                  <div className="mt-0.5 text-xs text-mist-400">{o.b}</div>
+                </button>
+              ))}
+            </div>
+
+            {dimension !== "none" && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="label" htmlFor="g-tag-label">
+                    {dimension === "single-tag" ? "Role" : "Identity"} label
+                  </label>
+                  <input
+                    id="g-tag-label"
+                    className="input"
+                    value={tagLabel}
+                    onChange={(e) => setTagLabel(e.target.value)}
+                    placeholder="Role / Side / Faction"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="g-tags">
+                    Pool (comma separated)
+                  </label>
+                  <textarea
+                    id="g-tags"
+                    className="input min-h-20"
+                    value={tagText}
+                    onChange={(e) => setTagText(e.target.value)}
+                    placeholder="Solo, Duo"
+                  />
+                </div>
+                {dimension === "multi-tag" && (
+                  <div>
+                    <label className="label" htmlFor="g-tags-per-player">
+                      How many per player, per game?
+                    </label>
+                    <input
+                      id="g-tags-per-player"
+                      type="number"
+                      min={1}
+                      max={6}
+                      className="input w-24"
+                      value={tagsPerPlayer}
+                      onChange={(e) => setTagsPerPlayer(Math.max(1, Number(e.target.value) || 1))}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
           <>
             <div>
               <label className="label" htmlFor="g-tag-label">
@@ -188,9 +273,9 @@ export function GameConfigEditor({ game }: { game: Game }) {
         </div>
 
         <p className="text-xs text-mist-400">
-          Scoring mode and rating dimension are fixed after creation — they change how the whole
-          history was rated. If one is genuinely wrong, add the game again and re-log, or ask for a
-          replay from Settings.
+          Scoring mode is fixed after creation, and once a role/identity pool exists its shape
+          (single vs. several per player) is too — both change how the whole history is rated. If
+          one is genuinely wrong, add the game again and re-log, or ask for a replay from Settings.
         </p>
       </div>
     </details>
