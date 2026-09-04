@@ -1,0 +1,229 @@
+import { getDb, nowIso } from "./db";
+import { displayed, newRating, rateTeams, type Skill } from "./rating";
+import {
+  effectiveConfig,
+  parseTags,
+  type Game,
+  type GameSession,
+  type Participant,
+} from "./types";
+
+/**
+ * Full sequential replay of every session in chronological order (design doc §9).
+ *
+ * Ratings are order-dependent, so any insert/edit/delete simply rebuilds
+ * `rating_snapshots` from scratch instead of patching rows in place. At home
+ * game-night volumes (thousands of sessions at most) this is milliseconds, and
+ * it makes "I typed the placements in wrong" a non-event.
+ */
+
+/**
+ * A rating pool is keyed by game + variant + tag + player.
+ *
+ *   variant='' tag=''   the game's overall pool — powers the main leaderboard
+ *   variant=V  tag=''   one way of playing it (Cribbage partners vs 1v1)
+ *   variant='' tag=T    a role or faction pool (§5.1, §5.2)
+ *
+ * Variant and tag pools are deliberately not crossed: "Evil at four-handed
+ * Cribbage" would be too sparse to ever mean anything, and each pool above
+ * answers a question someone would actually ask.
+ */
+type PoolMap = Map<string, Skill>;
+const key = (gameId: number, variant: string, tag: string, playerId: number) =>
+  `${gameId}|${variant}|${tag}|${playerId}`;
+
+interface SnapRow {
+  session_id: number;
+  player_id: number;
+  game_id: number;
+  variant: string;
+  tag: string;
+  season_id: number | null;
+  before: Skill;
+  after: Skill;
+  played_at: string;
+}
+
+/** Group participants into rating teams and return [teams, ranks]. */
+function groupTeams(
+  game: Game,
+  parts: Participant[],
+  allowsTeams: boolean,
+): { groups: Participant[][]; ranks: number[] } {
+  const byKey = new Map<string, Participant[]>();
+  const teamsPossible =
+    game.scoring_mode === "team-vs-team" || game.scoring_mode === "hidden-team" || allowsTeams;
+
+  for (const p of parts) {
+    let k: string;
+    if (teamsPossible) {
+      // Hidden-team games label sides with the role tag when no explicit team
+      // is set; a partnership-capable FFA game falls back to solo per player,
+      // so Cribbage at 2 and Cribbage at 4 both work off one config.
+      k = p.team ?? parseTags(p.tags)[0] ?? `solo-${p.player_id}`;
+    } else {
+      k = `solo-${p.player_id}`;
+    }
+    const arr = byKey.get(k);
+    if (arr) arr.push(p);
+    else byKey.set(k, [p]);
+  }
+  const groups = [...byKey.values()];
+  const ranks = groups.map((g) => Math.min(...g.map((p) => p.placement)));
+  return { groups, ranks };
+}
+
+function distinctRanks(ranks: number[]): boolean {
+  return new Set(ranks).size > 1;
+}
+
+/** Apply one session to the in-memory pools, returning the snapshot rows it produced. */
+function applySession(
+  game: Game,
+  session: GameSession,
+  parts: Participant[],
+  pools: PoolMap,
+): SnapRow[] {
+  const rows: SnapRow[] = [];
+  // True co-ops have no opposing skill signal — never touch the engine (§3).
+  if (game.scoring_mode === "coop-vs-game") return rows;
+  // Games flagged unrated are logged for plays, streaks and the calendar, but
+  // measuring "skill" at Cards Against Humanity would be a category error.
+  if (!game.rated) return rows;
+  if (parts.length < 2) return rows;
+
+  const config = effectiveConfig(game, session.variant);
+  const variant = config.variant ? config.variant.name : "";
+
+  const read = (v: string, tag: string, playerId: number): Skill =>
+    pools.get(key(game.id, v, tag, playerId)) ?? newRating();
+
+  const write = (v: string, tag: string, playerId: number, before: Skill, after: Skill) => {
+    pools.set(key(game.id, v, tag, playerId), after);
+    rows.push({
+      session_id: session.id,
+      player_id: playerId,
+      game_id: game.id,
+      variant: v,
+      tag,
+      season_id: session.season_id,
+      before,
+      after,
+      played_at: session.played_at,
+    });
+  };
+
+  const { groups, ranks } = groupTeams(game, parts, config.allows_teams);
+  const rateable = groups.length > 1 && distinctRanks(ranks);
+
+  // --- Overall pool: every non-co-op game has one. Powers the main leaderboard.
+  if (rateable) {
+    const before = groups.map((g) => g.map((p) => read("", "", p.player_id)));
+    const after = rateTeams(before, ranks);
+    groups.forEach((g, i) =>
+      g.forEach((p, j) => write("", "", p.player_id, before[i][j], after[i][j])),
+    );
+  }
+
+  // --- Variant pool: the same session, scored again in its own bracket.
+  if (rateable && variant) {
+    const before = groups.map((g) => g.map((p) => read(variant, "", p.player_id)));
+    const after = rateTeams(before, ranks);
+    groups.forEach((g, i) =>
+      g.forEach((p, j) => write(variant, "", p.player_id, before[i][j], after[i][j])),
+    );
+  }
+
+  // --- Tag pools (§5.1, §5.2)
+  if (game.rating_dimension === "single-tag") {
+    // One tag per player; each tag is its own pool, keyed game+tag.
+    const tagged = parts.filter((p) => parseTags(p.tags).length > 0);
+    if (tagged.length > 1) {
+      const { groups: tg, ranks: tr } = groupTeams(game, tagged, config.allows_teams);
+      if (tg.length > 1 && distinctRanks(tr)) {
+        const before = tg.map((g) => g.map((p) => read("", parseTags(p.tags)[0], p.player_id)));
+        const after = rateTeams(before, tr);
+        tg.forEach((g, i) =>
+          g.forEach((p, j) =>
+            write("", parseTags(p.tags)[0], p.player_id, before[i][j], after[i][j]),
+          ),
+        );
+      }
+    }
+  } else if (game.rating_dimension === "multi-tag") {
+    // A player is effectively a "team" of their own factions for the session.
+    const tagged = parts.filter((p) => parseTags(p.tags).length > 0);
+    const mRanks = tagged.map((p) => p.placement);
+    if (tagged.length > 1 && distinctRanks(mRanks)) {
+      const before = tagged.map((p) => parseTags(p.tags).map((t) => read("", t, p.player_id)));
+      const after = rateTeams(before, mRanks);
+      tagged.forEach((p, i) => {
+        const tags = parseTags(p.tags);
+        tags.forEach((t, j) => write("", t, p.player_id, before[i][j], after[i][j]));
+      });
+    }
+  }
+
+  return rows;
+}
+
+export function replayRatings(): { sessions: number; snapshots: number } {
+  const db = getDb();
+  return db.transaction(() => {
+    db.prepare("DELETE FROM rating_snapshots").run();
+
+    const games = new Map<number, Game>(
+      (db.prepare("SELECT * FROM games").all() as Game[]).map((g) => [g.id, g]),
+    );
+    const sessions = db
+      .prepare("SELECT * FROM sessions ORDER BY played_at ASC, id ASC")
+      .all() as GameSession[];
+    const allParts = db
+      .prepare("SELECT * FROM participants ORDER BY session_id, placement, id")
+      .all() as Participant[];
+
+    const partsBySession = new Map<number, Participant[]>();
+    for (const p of allParts) {
+      const arr = partsBySession.get(p.session_id);
+      if (arr) arr.push(p);
+      else partsBySession.set(p.session_id, [p]);
+    }
+
+    const pools: PoolMap = new Map();
+    const insert = db.prepare(`
+      INSERT INTO rating_snapshots
+        (session_id, player_id, game_id, variant, tag, season_id, mu, sigma, displayed_rating,
+         mu_before, sigma_before, displayed_before, played_at, created_at)
+      VALUES (@session_id, @player_id, @game_id, @variant, @tag, @season_id, @mu, @sigma, @displayed_rating,
+              @mu_before, @sigma_before, @displayed_before, @played_at, @created_at)
+    `);
+
+    const created = nowIso();
+    let snapshots = 0;
+    for (const s of sessions) {
+      const game = games.get(s.game_id);
+      if (!game) continue;
+      const rows = applySession(game, s, partsBySession.get(s.id) ?? [], pools);
+      for (const r of rows) {
+        insert.run({
+          session_id: r.session_id,
+          player_id: r.player_id,
+          game_id: r.game_id,
+          variant: r.variant,
+          tag: r.tag,
+          season_id: r.season_id,
+          mu: r.after.mu,
+          sigma: r.after.sigma,
+          displayed_rating: displayed(r.after),
+          mu_before: r.before.mu,
+          sigma_before: r.before.sigma,
+          displayed_before: displayed(r.before),
+          played_at: r.played_at,
+          created_at: created,
+        });
+        snapshots++;
+      }
+    }
+    return { sessions: sessions.length, snapshots };
+  })();
+}

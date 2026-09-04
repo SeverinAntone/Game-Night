@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Board Game Night — design tokens.
+   Dark "table felt at 11pm" base, with a warm accent for the fun bits.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-ink-950: #08090f;
+  --color-ink-900: #0d0f18;
+  --color-ink-850: #121522;
+  --color-ink-800: #171b2b;
+  --color-ink-700: #222840;
+  --color-ink-600: #313a5c;
+  --color-ink-500: #4b5680;
+  --color-mist-400: #8f9bc4;
+  --color-mist-300: #b8c1e0;
+  --color-mist-100: #eef1fb;
+
+  --color-grape-500: #8b5cf6;
+  --color-grape-400: #a78bfa;
+  --color-grape-300: #c4b5fd;
+  --color-amber-brand: #fbbf24;
+  --color-mint: #34d399;
+  --color-rose-brand: #fb7185;
+  --color-sky-brand: #38bdf8;
+
+  /* No webfonts on purpose: this thing has to load instantly on a phone
+     that may have nothing but the LAN to talk to. */
+  --font-display: "Trebuchet MS", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --radius-card: 1.15rem;
+}
+
+:root {
+  color-scheme: dark;
+  --bg-felt: radial-gradient(120% 90% at 12% -10%, #1c1636 0%, transparent 55%),
+    radial-gradient(100% 80% at 92% 0%, #12283f 0%, transparent 50%),
+    linear-gradient(180deg, #0a0b13 0%, #080910 100%);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg-felt);
+  background-attachment: fixed;
+  color: var(--color-mist-100);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Respect iOS safe areas so the tab bar isn't under the home indicator. */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+@layer components {
+  .card {
+    @apply rounded-[var(--radius-card)] border border-white/8 bg-ink-850/70 backdrop-blur-sm;
+    box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 18px 40px -24px rgb(0 0 0 / 0.9);
+  }
+
+  .card-hover {
+    @apply transition duration-200 hover:border-white/15 hover:bg-ink-800/80 active:scale-[0.995];
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5
+           px-2.5 py-1 text-xs font-medium text-mist-300;
+  }
+
+  /* Tailwind's @apply only takes utilities, so the shared button base is
+     repeated rather than composed from .btn. */
+  .btn,
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+           transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-primary {
+    @apply bg-grape-500 text-white shadow-lg shadow-grape-500/25 hover:bg-grape-400;
+  }
+
+  .btn-ghost {
+    @apply border border-white/10 bg-white/5 text-mist-100 hover:bg-white/10;
+  }
+
+  .btn-danger {
+    @apply border border-rose-brand/30 bg-rose-brand/10 text-rose-brand hover:bg-rose-brand/20;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-ink-900/80 px-3.5 py-2.5 text-[15px]
+           text-mist-100 outline-none transition placeholder:text-ink-500
+           focus:border-grape-400/60 focus:ring-2 focus:ring-grape-500/25;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-mist-400;
+  }
+
+  .section-title {
+    @apply font-display text-sm font-bold uppercase tracking-[0.18em] text-mist-400;
+  }
+
+  .stat-value {
+    @apply font-display text-2xl font-extrabold tabular-nums text-mist-100;
+  }
+}
+
+/* Numbers should never jitter when they animate. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Reveal-screen animations (§10) ------------------------------------- */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pop {
+  animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgb(255 255 255 / 0.14) 45%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), 104vh, 0) rotate(720deg);
+    opacity: 0.9;
+  }
+}
+
+.confetti-piece {
+  position: fixed;
+  top: 0;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confetti-fall linear forwards;
+  pointer-events: none;
+  z-index: 60;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-72px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+.float-up {
+  animation: float-up 0.9s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-pop,
+  .confetti-piece,
+  .shimmer,
+  .float-up {
+    animation: none !important;
+  }
+}
+
+/* Drag handles shouldn't trigger text selection or native scroll on touch. */
+.drag-handle {
+  touch-action: none;
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-700);
+  border-radius: 999px;
+}
