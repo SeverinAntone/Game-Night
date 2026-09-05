@@ -26,7 +26,6 @@ import { useMe } from "./useMe";
 import {
   effectiveConfig,
   gameVariants,
-  tagPool,
   type Game,
   type Player,
 } from "@/lib/types";
@@ -97,9 +96,12 @@ export function SessionEntry({
   const [error, setError] = useState<string | null>(null);
 
   const game = games.find((g) => g.id === gameId) ?? null;
-  const pool = game ? tagPool(game) : [];
   const variants = game ? gameVariants(game) : [];
+  // A variant with its own role/identity split (Cribbage's 2-vs-1 Solo/Duo)
+  // fully replaces the game's for sessions logged under it — so which tags
+  // apply, and whether any do at all, can change as you pick the variant.
   const config = game ? effectiveConfig(game, variant) : null;
+  const pool = config?.tag_pool ?? [];
   const isCoop = game?.scoring_mode === "coop-vs-game";
   const isHidden = game?.scoring_mode === "hidden-team";
   const isTeams = game?.scoring_mode === "team-vs-team";
@@ -110,8 +112,8 @@ export function SessionEntry({
   // picker, but everyone defaults to playing for themselves. The chosen
   // variant can turn this on even when the parent game leaves it off.
   const canPickTeams = isTeams || !!config?.allows_teams;
-  const needsTags = !!game && game.rating_dimension !== "none";
-  const tagsPerPlayer = game?.rating_dimension === "multi-tag" ? game.tags_per_player : 1;
+  const needsTags = !!config && config.rating_dimension !== "none";
+  const tagsPerPlayer = config?.rating_dimension === "multi-tag" ? config.tags_per_player : 1;
   // A nudge, never a block — house rules are the whole point.
   const outsidePlayerRange =
     !!config &&
@@ -520,6 +522,7 @@ export function SessionEntry({
                         place={placements[i]}
                         game={game}
                         pool={pool}
+                        tagLabel={config?.tag_label ?? "Tag"}
                         tagsPerPlayer={tagsPerPlayer}
                         canPickTeams={canPickTeams}
                         onChange={(patch) =>
@@ -679,6 +682,7 @@ function PlacementRow({
   place,
   game,
   pool,
+  tagLabel,
   tagsPerPlayer,
   canPickTeams,
   onChange,
@@ -688,6 +692,7 @@ function PlacementRow({
   place: number;
   game: Game;
   pool: string[];
+  tagLabel: string;
   tagsPerPlayer: number;
   canPickTeams: boolean;
   onChange: (patch: Partial<Row>) => void;
@@ -752,10 +757,10 @@ function PlacementRow({
         )}
       </div>
 
-      {game.rating_dimension !== "none" && pool.length > 0 && (
+      {pool.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-t border-white/5 px-3 py-2">
           <span className="mr-1 self-center text-[10px] font-bold uppercase tracking-wider text-ink-500">
-            {game.tag_label ?? "Tag"}
+            {tagLabel}
             {tagsPerPlayer > 1 ? ` ×${tagsPerPlayer}` : ""}
           </span>
           {pool.map((t) => {

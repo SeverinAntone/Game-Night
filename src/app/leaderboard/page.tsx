@@ -4,7 +4,7 @@ import { Sparkline } from "@/components/charts";
 import { Avatar, Empty, MEDALS, PageHeader, TierBadge } from "@/components/ui";
 import { gameLeaderboard, getGames, overallComposite, trajectory } from "@/lib/queries";
 import { tierFor, tierForComposite } from "@/lib/rating";
-import { gameVariants, tagPool } from "@/lib/types";
+import { effectiveConfig, gameVariants } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +22,22 @@ export default async function LeaderboardPage({
   const games = getGames();
   const gameId = sp.game ? Number(sp.game) : null;
   const game = games.find((g) => g.id === gameId) ?? null;
-  const tag = game?.rating_dimension === "single-tag" ? (sp.tag ?? "") : "";
   const variants = game ? gameVariants(game) : [];
   const variant = variants.some((v) => v.name === sp.variant) ? sp.variant! : "";
+  // A variant with its own role split takes over from the game's — same rule
+  // as everywhere else this is resolved (SessionEntry, recompute).
+  const config = game ? effectiveConfig(game, variant || null) : null;
+  const tag = config?.rating_dimension === "single-tag" ? (sp.tag ?? "") : "";
+  // Tag pools are keyed by whichever level they actually belong to — the
+  // variant's own name if the split is scoped there, '' if it's the game's
+  // (which may still be viewed while a variant with no split of its own is
+  // selected) — not necessarily the variant the page is currently filtered
+  // to. The plain combined board, with no tag, always uses the raw variant.
+  const poolVariant = tag ? (config?.tagPoolVariant ?? "") : variant;
 
-  const rows = game ? gameLeaderboard(game.id, tag, variant) : [];
+  const rows = game ? gameLeaderboard(game.id, tag, poolVariant) : [];
   const composite = game ? [] : overallComposite();
+  const variantQS = variant ? `&variant=${encodeURIComponent(variant)}` : "";
 
   const ladder: LadderEntry[] = game
     ? rows.map((r) => ({
@@ -90,13 +100,18 @@ export default async function LeaderboardPage({
         </nav>
       )}
 
-      {game?.rating_dimension === "single-tag" && (
+      {config?.rating_dimension === "single-tag" && (
         <nav className="flex flex-wrap gap-2">
-          <FilterChip href={`/leaderboard?game=${game.id}`} active={!tag} label={`All ${game.tag_label?.toLowerCase() ?? "role"}s`} small />
-          {tagPool(game).map((t) => (
+          <FilterChip
+            href={`/leaderboard?game=${game!.id}${variantQS}`}
+            active={!tag}
+            label={`All ${config.tag_label?.toLowerCase() ?? "role"}s`}
+            small
+          />
+          {(config.tag_pool ?? []).map((t) => (
             <FilterChip
               key={t}
-              href={`/leaderboard?game=${game.id}&tag=${encodeURIComponent(t)}`}
+              href={`/leaderboard?game=${game!.id}${variantQS}&tag=${encodeURIComponent(t)}`}
               active={tag === t}
               label={t}
               small
@@ -120,10 +135,10 @@ export default async function LeaderboardPage({
         />
       )}
 
-      {game?.rating_dimension === "multi-tag" && (
+      {config?.rating_dimension === "multi-tag" && (
         <p className="card px-4 py-3 text-xs text-mist-400">
-          Per-{(game.tag_label ?? "tag").toLowerCase()} ratings for {game.name} live on its{" "}
-          <Link href={`/games/${game.id}`} className="font-semibold text-grape-300">
+          Per-{(config.tag_label ?? "tag").toLowerCase()} ratings for {game!.name} live on its{" "}
+          <Link href={`/games/${game!.id}`} className="font-semibold text-grape-300">
             analytics page
           </Link>{" "}
           — the main board stays one row per player.
@@ -145,7 +160,7 @@ export default async function LeaderboardPage({
         ) : (
           <ol className="space-y-2">
             {rows.map((r, i) => {
-              const traj = trajectory(r.player.id, game.id, tag, variant)
+              const traj = trajectory(r.player.id, game.id, tag, poolVariant)
                 .slice(-12)
                 .map((t) => t.rating);
               return (

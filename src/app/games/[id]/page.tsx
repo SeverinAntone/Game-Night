@@ -183,6 +183,9 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
             {variants.map((v) => {
               const board = gameLeaderboard(id, "", v.name);
               const plays = variantPlays.get(v.name) ?? 0;
+              const variantTagged = (v.rating_dimension ?? "none") !== "none";
+              const variantTags = variantTagged ? tagRatings(id, v.name) : [];
+              const variantPool = v.tag_pool ?? [];
               return (
                 <div key={v.name} className="card p-4">
                   <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -202,6 +205,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
                           : `${v.min_players}–${v.max_players} players`
                         : null,
                       v.allows_teams ? "partnerships" : null,
+                      variantTagged ? `by ${(v.tag_label ?? "side").toLowerCase()}` : null,
                       `${plays} play${plays === 1 ? "" : "s"}`,
                     ]
                       .filter(Boolean)
@@ -224,6 +228,47 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
                         </li>
                       ))}
                     </ul>
+                  )}
+
+                  {variantTagged && variantTags.length > 0 && (
+                    <div className="mt-3 space-y-2 border-t border-white/8 pt-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-ink-500">
+                        By {(v.tag_label ?? "side").toLowerCase()}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {variantPool.map((t) => {
+                          const rows = variantTags.filter((r) => r.tag === t);
+                          if (!rows.length) return null;
+                          return (
+                            <div key={t}>
+                              <div className="mb-1 flex items-center justify-between">
+                                <span className="text-xs font-bold text-sky-brand">{t}</span>
+                                <Link
+                                  href={`/leaderboard?game=${id}&variant=${encodeURIComponent(v.name)}&tag=${encodeURIComponent(t)}`}
+                                  className="text-[11px] font-semibold text-grape-300"
+                                >
+                                  board →
+                                </Link>
+                              </div>
+                              <ul className="space-y-1">
+                                {rows.slice(0, 5).map((r) => (
+                                  <li key={r.player.id} className="flex items-center gap-2 text-sm">
+                                    <Avatar emoji={r.player.emoji} color={r.player.color} size={20} />
+                                    <span className="min-w-0 flex-1 truncate">{r.player.name}</span>
+                                    <span className="text-[11px] text-mist-400">
+                                      {r.wins}/{r.plays}
+                                    </span>
+                                    <span className="w-12 text-right font-semibold tabular-nums">
+                                      {Math.round(r.rating)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               );

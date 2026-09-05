@@ -134,32 +134,36 @@ function applySession(
     );
   }
 
-  // --- Tag pools (§5.1, §5.2)
-  if (game.rating_dimension === "single-tag") {
-    // One tag per player; each tag is its own pool, keyed game+tag.
+  // --- Tag pools (§5.1, §5.2) — scoped to config.tagPoolVariant: '' when the
+  // split is the game's own (spans every variant, e.g. Smash Up, Avalon), or
+  // this specific variant's name when the split only applies there (Cribbage's
+  // 2-vs-1 Solo/Duo shouldn't touch Classic 1v1's pool, which has none).
+  const tv = config.tagPoolVariant;
+  if (config.rating_dimension === "single-tag") {
+    // One tag per player; each tag is its own pool, keyed game+variant+tag.
     const tagged = parts.filter((p) => parseTags(p.tags).length > 0);
     if (tagged.length > 1) {
       const { groups: tg, ranks: tr } = groupTeams(game, tagged, config.allows_teams);
       if (tg.length > 1 && distinctRanks(tr)) {
-        const before = tg.map((g) => g.map((p) => read("", parseTags(p.tags)[0], p.player_id)));
+        const before = tg.map((g) => g.map((p) => read(tv, parseTags(p.tags)[0], p.player_id)));
         const after = rateTeams(before, tr);
         tg.forEach((g, i) =>
           g.forEach((p, j) =>
-            write("", parseTags(p.tags)[0], p.player_id, before[i][j], after[i][j]),
+            write(tv, parseTags(p.tags)[0], p.player_id, before[i][j], after[i][j]),
           ),
         );
       }
     }
-  } else if (game.rating_dimension === "multi-tag") {
+  } else if (config.rating_dimension === "multi-tag") {
     // A player is effectively a "team" of their own factions for the session.
     const tagged = parts.filter((p) => parseTags(p.tags).length > 0);
     const mRanks = tagged.map((p) => p.placement);
     if (tagged.length > 1 && distinctRanks(mRanks)) {
-      const before = tagged.map((p) => parseTags(p.tags).map((t) => read("", t, p.player_id)));
+      const before = tagged.map((p) => parseTags(p.tags).map((t) => read(tv, t, p.player_id)));
       const after = rateTeams(before, mRanks);
       tagged.forEach((p, i) => {
         const tags = parseTags(p.tags);
-        tags.forEach((t, j) => write("", t, p.player_id, before[i][j], after[i][j]));
+        tags.forEach((t, j) => write(tv, t, p.player_id, before[i][j], after[i][j]));
       });
     }
   }

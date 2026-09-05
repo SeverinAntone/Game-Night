@@ -177,7 +177,7 @@ export function gameLeaderboard(gameId: number, tag = "", variant = ""): Leaderb
   const players = new Map(getPlayers(true).map((p) => [p.id, p]));
   const ratings = currentRatings(gameId, tag, variant);
   const counts = tag
-    ? tagPlayCounts(gameId).get(tag) ?? new Map<number, number>()
+    ? tagPlayCounts(gameId, variant).get(tag) ?? new Map<number, number>()
     : new Map(
         all<{ player_id: number; n: number }>(
           `SELECT p.player_id, COUNT(*) AS n FROM participants p
@@ -188,17 +188,23 @@ export function gameLeaderboard(gameId: number, tag = "", variant = ""): Leaderb
           variant,
         ).map((r) => [r.player_id, r.n]),
       );
-  const wins = new Map(
-    all<{ player_id: number; n: number }>(
-      `SELECT p.player_id, COUNT(*) AS n FROM participants p
-         JOIN sessions s ON s.id = p.session_id
-        WHERE s.game_id = ? AND p.placement = 1 AND (? = '' OR s.variant = ?)
-        GROUP BY p.player_id`,
-      gameId,
-      variant,
-      variant,
-    ).map((r) => [r.player_id, r.n]),
-  );
+  // A tagged pool's win count has to agree with the SAME side that produced
+  // `counts` above — otherwise a player who won on the *other* side last time
+  // out inflates this side's win rate (it's how a 1-play pool once read
+  // "200% wins": wins came from both sides, plays from only this one).
+  const wins = tag
+    ? tagWinCounts(gameId, variant).get(tag) ?? new Map<number, number>()
+    : new Map(
+        all<{ player_id: number; n: number }>(
+          `SELECT p.player_id, COUNT(*) AS n FROM participants p
+             JOIN sessions s ON s.id = p.session_id
+            WHERE s.game_id = ? AND p.placement = 1 AND (? = '' OR s.variant = ?)
+            GROUP BY p.player_id`,
+          gameId,
+          variant,
+          variant,
+        ).map((r) => [r.player_id, r.n]),
+      );
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
   // One query for everyone's "rating 7 days ago" instead of one per row.
   const priors = new Map(
@@ -239,12 +245,34 @@ export function gameLeaderboard(gameId: number, tag = "", variant = ""): Leaderb
     .sort((a, b) => b.rating - a.rating);
 }
 
-/** Plays per tag per player for a game (tag sub-leaderboards / analytics). */
-export function tagPlayCounts(gameId: number): Map<string, Map<number, number>> {
+/**
+ * Plays per tag per player for a game (tag sub-leaderboards / analytics).
+ * `variant` matches {@link currentRatings}: '' pools every session of the
+ * game (a role split that belongs to the game itself), a name scopes to just
+ * that variant (a role split that belongs to one specific way of playing it).
+ */
+export function tagPlayCounts(gameId: number, variant = ""): Map<string, Map<number, number>> {
+  return tagCounts(gameId, variant, false);
+}
+
+/**
+ * Wins per tag per player — the win side of {@link tagPlayCounts}. Kept as
+ * its own function (rather than reusing plays for the denominator) because a
+ * player's wins have to come from the *same* tagged side, or a pool's win
+ * rate silently counts victories won on the other side entirely.
+ */
+export function tagWinCounts(gameId: number, variant = ""): Map<string, Map<number, number>> {
+  return tagCounts(gameId, variant, true);
+}
+
+function tagCounts(gameId: number, variant: string, winnersOnly: boolean): Map<string, Map<number, number>> {
   const rows = all<{ player_id: number; tags: string | null }>(
     `SELECT p.player_id, p.tags FROM participants p
-       JOIN sessions s ON s.id = p.session_id WHERE s.game_id = ?`,
+       JOIN sessions s ON s.id = p.session_id
+      WHERE s.game_id = ? AND (? = '' OR s.variant = ?) ${winnersOnly ? "AND p.placement = 1" : ""}`,
     gameId,
+    variant,
+    variant,
   );
   const out = new Map<string, Map<number, number>>();
   for (const r of rows) {
@@ -728,21 +756,23 @@ export interface TagRatingRow {
   wins: number;
 }
 
-export function tagRatings(gameId: number): TagRatingRow[] {
+export function tagRatings(gameId: number, variant = ""): TagRatingRow[] {
   const players = new Map(getPlayers(true).map((p) => [p.id, p]));
-  const counts = tagPlayCounts(gameId);
+  const counts = tagPlayCounts(gameId, variant);
   const winRows = all<{ player_id: number; tags: string | null }>(
     `SELECT p.player_id, p.tags FROM participants p
        JOIN sessions s ON s.id = p.session_id
-      WHERE s.game_id = ? AND p.placement = 1`,
+      WHERE s.game_id = ? AND p.placement = 1 AND (? = '' OR s.variant = ?)`,
     gameId,
+    variant,
+    variant,
   );
   const wins = new Map<string, number>();
   for (const r of winRows)
     for (const t of parseTags(r.tags))
       wins.set(`${t}|${r.player_id}`, (wins.get(`${t}|${r.player_id}`) ?? 0) + 1);
 
-  return currentRatings(gameId)
+  return currentRatings(gameId, undefined, variant)
     .filter((r) => r.tag !== "")
     .map((r) => ({
       tag: r.tag,
