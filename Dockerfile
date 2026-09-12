@@ -29,4 +29,4 @@ RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "node_modules/.bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]
