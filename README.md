@@ -201,3 +201,5 @@ Logging a session needs no identity at all — one person logs on behalf of the
 table. Tapping your face (no PIN) is enough for emoji reactions on the reveal
 screen. A short PIN only guards genuinely personal things: your Game Draft and
 edits to your own profile.
+
+## Test
