@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Avatar, Empty, MEDALS, PageHeader } from "@/components/ui";
-import { formatGameDate, gameDayKey } from "@/lib/dates";
+import { formatGameDate, formatGameTime, gameDayKey } from "@/lib/dates";
 import { getGames, getParticipantsForSessions, getPlayers, getSessions } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +85,9 @@ export default async function SessionsPage({
                             </span>
                           )}
                           <span className="min-w-0 flex-1 truncate font-semibold">{s.game_name}</span>
+                          <span className="shrink-0 text-[11px] tabular-nums text-mist-400">
+                            {formatGameTime(s.played_at)}
+                          </span>
                           {s.coop_result && (
                             <span className={s.coop_result === "win" ? "text-mint" : "text-rose-brand"}>
                               {s.coop_result === "win" ? "🏅" : "💀"}

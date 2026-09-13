@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Mode = "password" | "migrate";
+
+const REDIRECT_FLAG = "bgn_login_redirect_check";
 
 export function LoginForm({ next }: { next: string }) {
   const [mode, setMode] = useState<Mode>("password");
@@ -12,11 +14,30 @@ export function LoginForm({ next }: { next: string }) {
   const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bounceWarning, setBounceWarning] = useState(false);
+
+  // If we land back here right after a sign-in attempt that the server
+  // accepted, the cookie never stuck in the browser — almost always because
+  // this page loaded over plain http:// instead of https://, which means a
+  // Secure cookie (required in production) can't be set at all. Most common
+  // cause in practice: an old bookmark or "Add to Home Screen" icon still
+  // pointing at a local network address from before login was required.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(REDIRECT_FLAG)) {
+        sessionStorage.removeItem(REDIRECT_FLAG);
+        setBounceWarning(true);
+      }
+    } catch {
+      /* sessionStorage unavailable (e.g. private mode) — skip the check */
+    }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setBounceWarning(false);
 
     const body =
       mode === "password"
@@ -31,6 +52,11 @@ export function LoginForm({ next }: { next: string }) {
     const data = await res.json().catch(() => ({}));
 
     if (res.ok) {
+      try {
+        sessionStorage.setItem(REDIRECT_FLAG, "1");
+      } catch {
+        /* ignore — worst case we just skip the bounce-warning check */
+      }
       // Full navigation, not router.push — makes sure the new session cookie
       // is what middleware sees on the very next request.
       window.location.href = next;
@@ -51,12 +77,23 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <form onSubmit={submit} className="card space-y-4 p-5">
+      {bounceWarning && (
+        <p className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+          That sign-in was accepted, but your browser didn&apos;t stay signed in. This almost
+          always means you&apos;re on an old bookmark or home-screen icon pointing at a
+          local-network address instead of the real site address — signing in needs a secure
+          (https://) connection. Try opening the site fresh from its real web address, then
+          re-add it to your home screen from there if you use that.
+        </p>
+      )}
+
       <div>
         <label className="label" htmlFor="username">
           Username
         </label>
         <input
           id="username"
+          name="username"
           className="input"
           autoComplete="username"
           value={username}
@@ -72,6 +109,7 @@ export function LoginForm({ next }: { next: string }) {
           </label>
           <input
             id="password"
+            name="password"
             type="password"
             className="input"
             autoComplete="current-password"
@@ -91,6 +129,7 @@ export function LoginForm({ next }: { next: string }) {
             </label>
             <input
               id="pin"
+              name="pin"
               type="password"
               inputMode="numeric"
               className="input"
@@ -105,6 +144,7 @@ export function LoginForm({ next }: { next: string }) {
             </label>
             <input
               id="new-password"
+              name="new-password"
               type="password"
               className="input"
               autoComplete="new-password"

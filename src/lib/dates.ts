@@ -48,6 +48,15 @@ export function formatGameDateLong(iso: string | number): string {
   }).format(new Date(iso));
 }
 
+/** "9:34 PM" — for display, always the app's timezone. */
+export function formatGameTime(iso: string | number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
 /** "Sep 26" — compact month/year, for chart axis labels in the app's timezone. */
 export function formatMonthYear(iso: string | number): string {
   return new Intl.DateTimeFormat("en-US", {

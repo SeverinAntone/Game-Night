@@ -66,6 +66,7 @@ export function AddPlayer() {
         </label>
         <input
           id="p-name"
+          name="name"
           className="input"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -81,6 +82,7 @@ export function AddPlayer() {
           </label>
           <input
             id="p-username"
+            name="username"
             className="input"
             autoComplete="off"
             value={username}
@@ -93,6 +95,7 @@ export function AddPlayer() {
           </label>
           <input
             id="p-password"
+            name="new-password"
             type="password"
             className="input"
             autoComplete="new-password"

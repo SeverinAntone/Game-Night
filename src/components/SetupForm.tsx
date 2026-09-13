@@ -38,7 +38,7 @@ export function SetupForm() {
         <label className="label" htmlFor="setup-name">
           Your name
         </label>
-        <input id="setup-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <input id="setup-name" name="name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
       </div>
       <div>
         <label className="label" htmlFor="setup-username">
@@ -46,6 +46,7 @@ export function SetupForm() {
         </label>
         <input
           id="setup-username"
+          name="username"
           className="input"
           autoComplete="username"
           value={username}
@@ -58,6 +59,7 @@ export function SetupForm() {
         </label>
         <input
           id="setup-password"
+          name="new-password"
           type="password"
           className="input"
           autoComplete="new-password"

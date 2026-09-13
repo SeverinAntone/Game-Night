@@ -65,7 +65,7 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
         <label className="label" htmlFor="e-name">
           Name
         </label>
-        <input id="e-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        <input id="e-name" name="name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <AvatarPicker emoji={emoji} color={color} onEmoji={setEmoji} onColor={setColor} />
       <div>
@@ -94,6 +94,7 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
         <div className="space-y-2">
           <input
             type="password"
+            name="current-password"
             className="input"
             placeholder="Current password"
             autoComplete="current-password"
@@ -102,6 +103,7 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
           />
           <input
             type="password"
+            name="new-password"
             className="input"
             placeholder="New password (8+ characters)"
             autoComplete="new-password"

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, MEDALS, ordinalSuffix } from "./ui";
-import { formatGameDateLong } from "@/lib/dates";
+import { formatGameDateLong, formatGameTime } from "@/lib/dates";
 import type { Reveal as RevealData } from "@/lib/sessions";
 
 /**
@@ -45,7 +45,8 @@ export function RevealScreen({ data }: { data: RevealData }) {
               {data.game.name}
             </Link>
             <div className="text-xs text-mist-400">
-              {formatGameDateLong(data.session.played_at)}
+              {formatGameDateLong(data.session.played_at)} ·{" "}
+              {formatGameTime(data.session.played_at)}
               {data.session.difficulty ? ` · difficulty ${data.session.difficulty}` : ""}
             </div>
           </div>

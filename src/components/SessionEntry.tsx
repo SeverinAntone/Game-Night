@@ -22,13 +22,22 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar } from "./ui";
-import { gameDayKey } from "@/lib/dates";
 import {
   effectiveConfig,
   gameVariants,
   type Game,
   type Player,
 } from "@/lib/types";
+
+/** Browser-local date ("YYYY-MM-DD") and time ("HH:MM") parts of an ISO instant. */
+function localDateTimeParts(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
 
 /**
  * Quick session entry (§10): pick game → tap players → drag to order → done.
@@ -90,10 +99,14 @@ export function SessionEntry({
   const [coopResult, setCoopResult] = useState<"win" | "loss">(initial?.coop_result ?? "win");
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  // gameDayKey, not .slice(0, 10): the stored value is UTC, and slicing it
-  // raw shows the wrong calendar day for anyone west of UTC once the date
-  // rolls over — the same bug that showed up on the History tab.
-  const [playedAt, setPlayedAt] = useState(gameDayKey(initial?.played_at ?? new Date().toISOString()));
+  // Local (browser) date/time parts, not a UTC slice — matches exactly what
+  // gets written back on save (see the played_at line further down), so
+  // reopening this form without touching either field round-trips to the
+  // same instant instead of silently swapping in whatever time it happens
+  // to be right now.
+  const initialDateTime = localDateTimeParts(initial?.played_at ?? new Date().toISOString());
+  const [playedAt, setPlayedAt] = useState(initialDateTime.date);
+  const [playedTime, setPlayedTime] = useState(initialDateTime.time);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -189,7 +202,7 @@ export function SessionEntry({
     const payload = {
       game_id: game.id,
       variant: variants.length ? variant : null,
-      played_at: new Date(`${playedAt}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
+      played_at: new Date(`${playedAt}T${playedTime}:00`).toISOString(),
       notes: notes.trim() || null,
       difficulty: game.tracks_difficulty ? difficulty.trim() || null : null,
       coop_result: isCoop ? coopResult : null,
@@ -573,17 +586,31 @@ export function SessionEntry({
           )}
 
           <div className="card space-y-3 p-4">
-            <div>
-              <label className="label" htmlFor="played">
-                Played on
-              </label>
-              <input
-                id="played"
-                type="date"
-                className="input"
-                value={playedAt}
-                onChange={(e) => setPlayedAt(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label" htmlFor="played">
+                  Played on
+                </label>
+                <input
+                  id="played"
+                  type="date"
+                  className="input"
+                  value={playedAt}
+                  onChange={(e) => setPlayedAt(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="played-time">
+                  Time
+                </label>
+                <input
+                  id="played-time"
+                  type="time"
+                  className="input"
+                  value={playedTime}
+                  onChange={(e) => setPlayedTime(e.target.value)}
+                />
+              </div>
             </div>
             <div>
               <label className="label" htmlFor="notes">
