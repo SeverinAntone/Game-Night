@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NavTabs, NavRail } from "./Nav";
 import { SwipeNav } from "./SwipeNav";
 import { WhoAmI } from "./WhoAmI";
+import { LOGIN_REDIRECT_FLAG } from "@/lib/uiFlags";
 
 /**
  * Everything that makes this feel like "the app" — side rail, mobile header,
@@ -23,7 +25,23 @@ export function AppChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  if (pathname === "/login") return <>{children}</>;
+  const onLoginPage = pathname === "/login";
+
+  // Reaching this branch at all means middleware already confirmed a valid
+  // session (the only page it doesn't gate is /login). That makes this the
+  // right moment to consider the post-login bounce check "answered" — so a
+  // later, unrelated trip back to /login (e.g. signing out) doesn't get
+  // mistaken for the original login's cookie never having stuck.
+  useEffect(() => {
+    if (onLoginPage) return;
+    try {
+      sessionStorage.removeItem(LOGIN_REDIRECT_FLAG);
+    } catch {
+      /* sessionStorage unavailable (e.g. private mode) — nothing to clear */
+    }
+  }, [onLoginPage]);
+
+  if (onLoginPage) return <>{children}</>;
 
   return (
     <>

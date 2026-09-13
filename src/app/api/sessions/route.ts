@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireWriter } from "@/lib/apiAuth";
 import { logChange } from "@/lib/changelog";
+import { formatGameDateLong } from "@/lib/dates";
 import { getGame, getSessions } from "@/lib/queries";
-import { createSession, ValidationError } from "@/lib/sessions";
+import { createSession, describeParticipants, ValidationError } from "@/lib/sessions";
 import type { SessionInput } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,12 @@ export async function POST(req: Request) {
   try {
     const id = createSession(body);
     const game = getGame(body.game_id);
-    logChange(actor, "session.create", `Logged a session of ${game?.name ?? "a game"}`);
+    logChange(
+      actor,
+      "session.create",
+      `Logged a session of ${game?.name ?? "a game"}`,
+      `${body.played_at ? formatGameDateLong(body.played_at) + " — " : ""}${describeParticipants(body.participants)}`,
+    );
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });

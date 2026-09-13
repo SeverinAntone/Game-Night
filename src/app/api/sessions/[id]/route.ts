@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireWriter } from "@/lib/apiAuth";
 import { logChange } from "@/lib/changelog";
 import { getGame, getParticipants, getSession } from "@/lib/queries";
-import { deleteSession, updateSession, ValidationError } from "@/lib/sessions";
+import { deleteSession, describeParticipants, updateSession, ValidationError } from "@/lib/sessions";
 import { parseTags, type SessionInput } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +27,20 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const id = Number((await params).id);
   const existing = getSession(id);
+  const before = existing ? describeParticipants(getParticipants(id)) : null;
+
   const body = (await req.json().catch(() => null)) as SessionInput | null;
   if (!body) return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   try {
     updateSession(id, body);
     const game = getGame(body.game_id ?? existing?.game_id ?? 0);
-    logChange(actor, "session.edit", `Edited a session of ${game?.name ?? "a game"}`);
+    const after = describeParticipants(body.participants);
+    logChange(
+      actor,
+      "session.edit",
+      `Edited a session of ${game?.name ?? "a game"}`,
+      before !== null && before !== after ? `Before: ${before}\nAfter:  ${after}` : `Players: ${after}`,
+    );
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
@@ -49,7 +57,8 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   const id = Number((await params).id);
   const existing = getSession(id);
   const game = existing ? getGame(existing.game_id) : undefined;
+  const wasPlaying = existing ? describeParticipants(getParticipants(id)) : undefined;
   deleteSession(id);
-  logChange(actor, "session.delete", `Deleted a session of ${game?.name ?? "a game"}`);
+  logChange(actor, "session.delete", `Deleted a session of ${game?.name ?? "a game"}`, wasPlaying);
   return NextResponse.json({ ok: true });
 }

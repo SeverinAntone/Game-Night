@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS changelog (
   actor_name TEXT    NOT NULL,
   action     TEXT    NOT NULL,
   summary    TEXT    NOT NULL,
+  details    TEXT,
   created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_changelog_created ON changelog(created_at DESC);
