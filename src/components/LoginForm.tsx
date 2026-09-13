@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LOGIN_REDIRECT_FLAG } from "@/lib/uiFlags";
 
 type Mode = "password" | "migrate";
-
-const REDIRECT_FLAG = "bgn_login_redirect_check";
 
 export function LoginForm({ next }: { next: string }) {
   const [mode, setMode] = useState<Mode>("password");
@@ -25,8 +24,8 @@ export function LoginForm({ next }: { next: string }) {
   // pointing at a local network address from before login was required.
   useEffect(() => {
     try {
-      if (sessionStorage.getItem(REDIRECT_FLAG)) {
-        sessionStorage.removeItem(REDIRECT_FLAG);
+      if (sessionStorage.getItem(LOGIN_REDIRECT_FLAG)) {
+        sessionStorage.removeItem(LOGIN_REDIRECT_FLAG);
         setBounceWarning(true);
       }
     } catch {
@@ -54,7 +53,7 @@ export function LoginForm({ next }: { next: string }) {
 
     if (res.ok) {
       try {
-        sessionStorage.setItem(REDIRECT_FLAG, "1");
+        sessionStorage.setItem(LOGIN_REDIRECT_FLAG, "1");
       } catch {
         /* ignore — worst case we just skip the bounce-warning check */
       }

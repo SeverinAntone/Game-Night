@@ -20,6 +20,7 @@ const RAIL = [
   { href: "/players", label: "Players", icon: "🃏" },
   { href: "/sessions", label: "History", icon: "📜" },
   { href: "/draft", label: "Game Draft", icon: "⚔️" },
+  { href: "/profile", label: "Profile", icon: "👤" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/apiAuth";
 import { logChange } from "@/lib/changelog";
+import { formatGameDate, formatGameTime } from "@/lib/dates";
 import { get, nowIso, pruneExpiredSignupRequests, run } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ interface PendingRow {
   name: string;
   username: string;
   password_hash: string;
+  requested_at: string;
 }
 
 /** Body: { action: "approve" | "deny" }. Owner/admin only. */
@@ -45,13 +47,23 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: "That username was taken in the meantime." }, { status: 400 });
     }
     run("DELETE FROM signup_requests WHERE id = ?", id);
-    logChange(actor, "signup.approve", `Approved ${pending.username}'s account request`);
+    logChange(
+      actor,
+      "signup.approve",
+      `Approved ${pending.username}'s account request`,
+      `Name: ${pending.name} · Requested ${formatGameDate(pending.requested_at)} at ${formatGameTime(pending.requested_at)}`,
+    );
     return NextResponse.json({ ok: true, id: newId });
   }
 
   if (body.action === "deny") {
     run("DELETE FROM signup_requests WHERE id = ?", id);
-    logChange(actor, "signup.deny", `Denied ${pending.username}'s account request`);
+    logChange(
+      actor,
+      "signup.deny",
+      `Denied ${pending.username}'s account request`,
+      `Name: ${pending.name} · Requested ${formatGameDate(pending.requested_at)} at ${formatGameTime(pending.requested_at)}`,
+    );
     return NextResponse.json({ ok: true });
   }
 

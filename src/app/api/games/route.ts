@@ -70,7 +70,14 @@ export async function POST(req: Request) {
       b.high_score_wins === false ? 0 : 1,
       nowIso(),
     );
-    logChange(actor, "game.add", `Added ${name} to the shelf`);
+    logChange(
+      actor,
+      "game.add",
+      `Added ${name} to the shelf`,
+      `${scoring_mode}${
+        b.min_players || b.max_players ? `, ${b.min_players ?? "?"}–${b.max_players ?? "?"} players` : ""
+      }${rating_dimension !== "none" ? `, rated by ${b.tag_label || "Tag"}` : ""}`,
+    );
     return NextResponse.json({ id: Number(res.lastInsertRowid) }, { status: 201 });
   } catch (e) {
     const msg =

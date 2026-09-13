@@ -80,6 +80,11 @@ export async function DELETE(_req: Request, { params }: Ctx) {
 
   // Soft delete only — hard-deleting a player would rewrite everyone's history.
   run("UPDATE players SET active = 0 WHERE id = ?", id);
-  logChange(actor, "player.remove", `Removed ${target.name} from the roster`);
+  logChange(
+    actor,
+    "player.remove",
+    `Removed ${target.name} from the roster`,
+    `Was: ${target.role} · @${target.username}`,
+  );
   return NextResponse.json({ ok: true });
 }

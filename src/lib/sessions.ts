@@ -1,6 +1,6 @@
 import { all, get, getDb, nowIso, run } from "./db";
 import { replayRatings } from "./recompute";
-import { getGame, getParticipants, getSession } from "./queries";
+import { getGame, getParticipants, getPlayer, getSession } from "./queries";
 import {
   gameVariants,
   parseTags,
@@ -11,6 +11,28 @@ import {
 } from "./types";
 
 export class ValidationError extends Error {}
+
+/**
+ * One line per participant, for the changelog's expandable detail —
+ * "Ada (1st, 42pts), Bo (2nd)" — rather than a raw dump of ids and numbers.
+ * Takes just the fields it actually uses (not the full participant shape)
+ * so it accepts both a fresh SessionInput and a row straight from the DB.
+ */
+export function describeParticipants(
+  input: { player_id: number; placement: number; score?: number | null; team?: string | null }[],
+): string {
+  return input
+    .slice()
+    .sort((a, b) => a.placement - b.placement)
+    .map((p) => {
+      const name = getPlayer(p.player_id)?.name ?? `#${p.player_id}`;
+      const bits = [`${p.placement}${p.placement === 1 ? "st" : p.placement === 2 ? "nd" : p.placement === 3 ? "rd" : "th"}`];
+      if (p.score != null) bits.push(`${p.score}pts`);
+      if (p.team) bits.push(p.team);
+      return `${name} (${bits.join(", ")})`;
+    })
+    .join(", ");
+}
 
 /** Normalise placements to a dense 1..n ranking that preserves ties. */
 function normalisePlacements(input: { placement: number }[]): number[] {
