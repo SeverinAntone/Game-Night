@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatGameDate } from "@/lib/dates";
 
 export function AdminActions({
   seasons,
@@ -72,7 +73,7 @@ export function AdminActions({
                 <span className={s.active ? "font-semibold" : "text-mist-400"}>{s.name}</span>
                 {s.active ? <span className="chip px-2 py-0 text-[10px] text-mint">current</span> : null}
                 <span className="text-xs text-mist-400">
-                  from {new Date(s.started_at).toLocaleDateString()}
+                  from {formatGameDate(s.started_at)}
                 </span>
               </li>
             ))}

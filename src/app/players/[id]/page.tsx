@@ -151,7 +151,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
         )}
       </article>
 
-      <PlayerCardActions player={player} isMe={me?.id === player.id} hasPin={!!player.has_pin} />
+      <PlayerCardActions player={player} isMe={me?.id === player.id} />
 
       {/* ---- Charts ------------------------------------------------------ */}
       {composite && composite.qualifyingGames.length >= 3 && (

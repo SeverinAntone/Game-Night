@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { Avatar } from "./ui";
-import { useMe } from "./useMe";
 import { REACTION_EMOJI, type Player } from "@/lib/types";
 
 interface Row {
@@ -17,9 +14,18 @@ interface Row {
  * Spammable post-game reactions (§7). Every tap increments a per-player tally,
  * taps are batched client-side, and other phones catch up by polling every
  * couple of seconds — no websocket machinery for a table of six.
+ *
+ * `me` is whoever is actually signed in — every visitor is authenticated now
+ * (see middleware.ts), so there's no more tap-any-name picker standing in
+ * for identity here.
  */
-export function Reactions({ sessionId, players }: { sessionId: number; players: Player[] }) {
-  const [me, setMe] = useMe();
+export function Reactions({
+  sessionId,
+  me,
+}: {
+  sessionId: number;
+  me: Pick<Player, "id" | "name" | "emoji" | "color">;
+}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [pending, setPending] = useState<Record<string, number>>({});
   const [floaters, setFloaters] = useState<{ id: number; emoji: string; x: number }[]>([]);
@@ -44,7 +50,6 @@ export function Reactions({ sessionId, players }: { sessionId: number; players: 
   }, [load]);
 
   const flush = useCallback(async () => {
-    if (!me) return;
     const batch = pendingRef.current;
     pendingRef.current = {};
     setPending({});
@@ -61,10 +66,9 @@ export function Reactions({ sessionId, players }: { sessionId: number; players: 
         /* dropped taps are not worth an error dialog */
       }
     }
-  }, [me, sessionId]);
+  }, [me.id, sessionId]);
 
   function tap(emoji: string, e: React.MouseEvent<HTMLButtonElement>) {
-    if (!me) return;
     pendingRef.current[emoji] = (pendingRef.current[emoji] ?? 0) + 1;
     setPending({ ...pendingRef.current });
 
@@ -107,59 +111,27 @@ export function Reactions({ sessionId, players }: { sessionId: number; players: 
 
       <div className="mb-3 flex items-center justify-between">
         <span className="section-title">Reactions</span>
-        {me ? (
-          <button
-            onClick={() => setMe(null)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-mist-400"
-          >
-            <Avatar emoji={me.emoji} color={me.color} size={20} />
-            {me.name} · switch
-          </button>
-        ) : null}
       </div>
 
-      {!me ? (
-        <div>
-          <p className="mb-2 text-sm text-mist-400">Tap your name to react — no PIN needed.</p>
-          <div className="flex flex-wrap gap-2">
-            {players.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setMe({ id: p.id, name: p.name, emoji: p.emoji, color: p.color })}
-                className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold hover:bg-white/10"
-              >
-                <Avatar emoji={p.emoji} color={p.color} size={22} />
-                {p.name}
-              </button>
-            ))}
-            {players.length === 0 && (
-              <Link href="/players" className="text-sm text-grape-300">
-                Add players first →
-              </Link>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-4 gap-2">
-          {REACTION_EMOJI.map((emoji) => {
-            const n = totals.get(emoji) ?? 0;
-            return (
-              <button
-                key={emoji}
-                onClick={(e) => tap(emoji, e)}
-                className={`flex flex-col items-center gap-0.5 rounded-xl border py-2.5 text-2xl transition active:scale-90 ${
-                  n > 0
-                    ? "border-grape-400/30 bg-grape-500/12"
-                    : "border-white/8 bg-white/5 hover:bg-white/10"
-                }`}
-              >
-                <span>{emoji}</span>
-                <span className="text-[11px] font-bold tabular-nums text-mist-400">{n || ""}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="grid grid-cols-4 gap-2">
+        {REACTION_EMOJI.map((emoji) => {
+          const n = totals.get(emoji) ?? 0;
+          return (
+            <button
+              key={emoji}
+              onClick={(e) => tap(emoji, e)}
+              className={`flex flex-col items-center gap-0.5 rounded-xl border py-2.5 text-2xl transition active:scale-90 ${
+                n > 0
+                  ? "border-grape-400/30 bg-grape-500/12"
+                  : "border-white/8 bg-white/5 hover:bg-white/10"
+              }`}
+            >
+              <span>{emoji}</span>
+              <span className="text-[11px] font-bold tabular-nums text-mist-400">{n || ""}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {leaderboard.length > 0 && (
         <p className="mt-3 text-[11px] text-mist-400">

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Avatar, Empty, MEDALS, PageHeader, formatDate } from "@/components/ui";
+import { Avatar, Empty, MEDALS, PageHeader } from "@/components/ui";
+import { formatGameDate, gameDayKey } from "@/lib/dates";
 import { getGames, getParticipantsForSessions, getPlayers, getSessions } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +18,16 @@ export default async function SessionsPage({
   const players = getPlayers(true);
   const partsBySession = getParticipantsForSessions(sessions.map((s) => s.id));
 
-  // Group by day so a whole game night reads as one block.
-  const byDay = new Map<string, typeof sessions>();
+  // Group by day so a whole game night reads as one block. gameDayKey (not a
+  // raw slice of the stored UTC timestamp) is what makes a session logged
+  // late in the evening land on the day it was actually played, regardless
+  // of what timezone the server happens to be running in.
+  const byDay = new Map<string, { display: string; sessions: typeof sessions }>();
   for (const s of sessions) {
-    const day = s.played_at.slice(0, 10);
-    const arr = byDay.get(day);
-    if (arr) arr.push(s);
-    else byDay.set(day, [s]);
+    const key = gameDayKey(s.played_at);
+    const bucket = byDay.get(key);
+    if (bucket) bucket.sessions.push(s);
+    else byDay.set(key, { display: formatGameDate(s.played_at), sessions: [s] });
   }
 
   const qs = (patch: Record<string, string | undefined>) => {
@@ -62,9 +66,9 @@ export default async function SessionsPage({
         <Empty icon="📜" title="Nothing here" body="No sessions match that filter." action={{ href: "/play", label: "Log a session" }} />
       ) : (
         <div className="space-y-5">
-          {[...byDay.entries()].map(([day, list]) => (
-            <section key={day}>
-              <h2 className="section-title mb-2">{formatDate(day)}</h2>
+          {[...byDay.entries()].map(([key, { display, sessions: list }]) => (
+            <section key={key}>
+              <h2 className="section-title mb-2">{display}</h2>
               <ul className="space-y-2">
                 {list.map((s) => {
                   const parts = partsBySession.get(s.id) ?? [];

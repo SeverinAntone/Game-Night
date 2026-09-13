@@ -15,8 +15,8 @@ export type RatingDimension = "none" | "single-tag" | "multi-tag";
 export type ResultMode = "ranked" | "winner-only";
 
 /**
- * The player shape that is safe to hand to the browser. The PIN hash lives
- * only in `PlayerRow`, which never leaves the server.
+ * The player shape that is safe to hand to the browser. Credential hashes
+ * live only in `PlayerRow`, which never leaves the server.
  */
 export interface Player {
   id: number;
@@ -24,13 +24,16 @@ export interface Player {
   emoji: string;
   color: string;
   tagline: string | null;
-  /** 1 when this player has set a PIN — the hash itself stays server-side. */
-  has_pin: number;
+  username: string;
+  /** 1 when this account still needs to set a password (pre-migration). */
+  needs_password_setup: number;
   join_date: string;
   active: number;
 }
 
 export interface PlayerRow extends Player {
+  password_hash: string | null;
+  /** Legacy PIN hash — only ever read during the one-time migration flow. */
   pin_hash: string | null;
 }
 

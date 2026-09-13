@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatGameDate } from "@/lib/dates";
 import type { Tier } from "@/lib/rating";
 
 export function Avatar({
@@ -140,8 +141,7 @@ export const ordinalSuffix = (n: number) => {
 export const MEDALS = ["🥇", "🥈", "🥉"];
 
 export function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return formatGameDate(iso);
 }
 
 export function relativeDate(iso: string) {
