@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireWriter } from "@/lib/apiAuth";
 import { currentPlayer } from "@/lib/auth";
 import { fitPreferences, nextDuel, persistPreferences } from "@/lib/bradleyterry";
 import { getGame } from "@/lib/queries";
@@ -26,8 +27,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const me = await currentPlayer();
-  if (!me) return NextResponse.json({ error: "Sign in to draft." }, { status: 401 });
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const me = auth.player;
 
   const body = await req.json().catch(() => null);
   const winner = Number(body?.winner_game_id);
@@ -59,8 +61,9 @@ export async function POST(req: Request) {
  * current duel, ready to be answered the other way.
  */
 export async function DELETE() {
-  const me = await currentPlayer();
-  if (!me) return NextResponse.json({ error: "Sign in to draft." }, { status: 401 });
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const me = auth.player;
 
   const last = get<{ id: number; winner_game_id: number; loser_game_id: number }>(
     `SELECT id, winner_game_id, loser_game_id FROM preference_comparisons

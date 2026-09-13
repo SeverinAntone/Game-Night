@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireWriter } from "@/lib/apiAuth";
+import { logChange } from "@/lib/changelog";
 import { get, run } from "@/lib/db";
 import { getGame } from "@/lib/queries";
 import { parseVariants } from "@/lib/types";
@@ -16,6 +18,10 @@ export async function GET(_req: Request, { params }: Ctx) {
 }
 
 export async function PATCH(req: Request, { params }: Ctx) {
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const { player: actor } = auth;
+
   const id = Number((await params).id);
   const game = getGame(id);
   if (!game) return NextResponse.json({ error: "No such game." }, { status: 404 });
@@ -96,17 +102,25 @@ export async function PATCH(req: Request, { params }: Ctx) {
     }
   }
   if (structural) replayRatings();
+  if (fields.length) logChange(actor, "game.edit", `Edited ${game.name}'s settings`);
   return NextResponse.json({ ok: true, replayed: structural });
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const { player: actor } = auth;
+
   const id = Number((await params).id);
+  const game = getGame(id);
   const played = get<{ n: number }>("SELECT COUNT(*) AS n FROM sessions WHERE game_id = ?", id);
   if (played && played.n > 0) {
     // Keep the history intact — retire instead of deleting.
     run("UPDATE games SET retired = 1 WHERE id = ?", id);
+    logChange(actor, "game.retire", `Retired ${game?.name ?? "a game"}`);
     return NextResponse.json({ ok: true, retired: true });
   }
   run("DELETE FROM games WHERE id = ?", id);
+  logChange(actor, "game.delete", `Deleted ${game?.name ?? "a game"}`);
   return NextResponse.json({ ok: true, deleted: true });
 }

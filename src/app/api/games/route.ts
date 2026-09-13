@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireWriter } from "@/lib/apiAuth";
+import { logChange } from "@/lib/changelog";
 import { nowIso, run } from "@/lib/db";
 import { getGames } from "@/lib/queries";
 import { parseVariants, type RatingDimension, type ResultMode, type ScoringMode } from "@/lib/types";
@@ -15,6 +17,10 @@ export async function GET() {
 
 /** Creates a game from the New Game wizard's config object (§5). */
 export async function POST(req: Request) {
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const { player: actor } = auth;
+
   const b = await req.json().catch(() => null);
   const name = String(b?.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "A name is required." }, { status: 400 });
@@ -64,6 +70,7 @@ export async function POST(req: Request) {
       b.high_score_wins === false ? 0 : 1,
       nowIso(),
     );
+    logChange(actor, "game.add", `Added ${name} to the shelf`);
     return NextResponse.json({ id: Number(res.lastInsertRowid) }, { status: 201 });
   } catch (e) {
     const msg =

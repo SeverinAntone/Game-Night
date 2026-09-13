@@ -2,51 +2,68 @@
 
 import { useState } from "react";
 
-/** Shown on /login only when the database has no players yet at all. */
-export function SetupForm() {
+/** Requests a new account. Doesn't sign anyone in — an owner or admin has to approve first. */
+export function SignupForm({ onSubmitted }: { onSubmitted: () => void }) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/setup", {
+    const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, username, password, password_confirm: passwordConfirm }),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      window.location.href = "/";
+    setBusy(false);
+    if (!res.ok) {
+      setError(data.error ?? "Something went wrong.");
       return;
     }
-    setBusy(false);
-    setError(data.error ?? "Something went wrong.");
+    setSubmitted(true);
+    onSubmitted();
+  }
+
+  if (submitted) {
+    return (
+      <div className="card p-5 text-center">
+        <p className="mb-2 text-2xl">📨</p>
+        <p className="text-sm text-mist-300">
+          Request sent. An owner or admin needs to approve it before you can sign in — it expires
+          in 10 minutes if nobody does, so check back or ask in person.
+        </p>
+      </div>
+    );
   }
 
   return (
     <form onSubmit={submit} className="card space-y-4 p-5">
-      <p className="text-xs text-mist-400">
-        Nobody&apos;s set up yet — create the first account. You can add everyone else once
-        you&apos;re signed in.
-      </p>
       <div>
-        <label className="label" htmlFor="setup-name">
+        <label className="label" htmlFor="signup-name">
           Your name
         </label>
-        <input id="setup-name" name="name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <input
+          id="signup-name"
+          name="name"
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
       </div>
       <div>
-        <label className="label" htmlFor="setup-username">
+        <label className="label" htmlFor="signup-username">
           Username
         </label>
         <input
-          id="setup-username"
+          id="signup-username"
           name="username"
           className="input"
           autoComplete="username"
@@ -55,11 +72,11 @@ export function SetupForm() {
         />
       </div>
       <div>
-        <label className="label" htmlFor="setup-password">
+        <label className="label" htmlFor="signup-password">
           Password
         </label>
         <input
-          id="setup-password"
+          id="signup-password"
           name="new-password"
           type="password"
           className="input"
@@ -71,11 +88,11 @@ export function SetupForm() {
         <p className="mt-1 text-[11px] text-mist-400">At least 8 characters.</p>
       </div>
       <div>
-        <label className="label" htmlFor="setup-password-confirm">
+        <label className="label" htmlFor="signup-password-confirm">
           Confirm password
         </label>
         <input
-          id="setup-password-confirm"
+          id="signup-password-confirm"
           name="new-password-confirm"
           type="password"
           className="input"
@@ -101,7 +118,7 @@ export function SetupForm() {
           password !== passwordConfirm
         }
       >
-        {busy ? "…" : "Create account & sign in"}
+        {busy ? "…" : "Request an account"}
       </button>
     </form>
   );

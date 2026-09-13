@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireWriter } from "@/lib/apiAuth";
 import { all, nowIso, run } from "@/lib/db";
 import { REACTION_EMOJI } from "@/lib/types";
 
@@ -29,6 +30,9 @@ export async function GET(_req: Request, { params }: Ctx) {
 }
 
 export async function POST(req: Request, { params }: Ctx) {
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+
   const sessionId = Number((await params).id);
   const body = await req.json().catch(() => null);
   const playerId = Number(body?.player_id);

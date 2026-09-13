@@ -14,7 +14,8 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Public columns only — `pin_hash` is deliberately never selected here. */
-const PLAYER_COLUMNS = `id, name, emoji, color, tagline, username, join_date, active,
+/** Public columns only — credential hashes are deliberately never selected here. */
+const PLAYER_COLUMNS = `id, name, emoji, color, tagline, username, role, join_date, active,
                         (password_hash IS NULL) AS needs_password_setup`;
 
 export const getPlayers = (includeInactive = false) =>

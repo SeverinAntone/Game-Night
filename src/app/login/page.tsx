@@ -1,4 +1,4 @@
-import { LoginForm } from "@/components/LoginForm";
+import { LoginOrSignup } from "@/components/LoginOrSignup";
 import { SetupForm } from "@/components/SetupForm";
 import { playerCount } from "@/lib/queries";
 
@@ -24,7 +24,7 @@ export default async function LoginPage({
       {needsSetup ? (
         <SetupForm />
       ) : (
-        <LoginForm next={sp.next && sp.next.startsWith("/") ? sp.next : "/"} />
+        <LoginOrSignup next={sp.next && sp.next.startsWith("/") ? sp.next : "/"} />
       )}
     </div>
   );

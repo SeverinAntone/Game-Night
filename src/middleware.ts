@@ -37,10 +37,16 @@ export const config = {
      *  - /api/setup          creates the very first account on an empty
      *                        database — see api/setup/route.ts for why this
      *                        is safe to leave open (it self-closes)
+     *  - /api/signup         requests a new account — unauthenticated by
+     *                        design, this is the airlock itself
+     *                        (note: this is /api/signup exactly — the
+     *                        (?!-) below stops it from also matching
+     *                        /api/signup-requests, which is staff-only and
+     *                        must stay behind the gate)
      *  - /_next/*            Next.js's own build assets
      *  - known public files  manifest + icons referenced directly by the
      *                        browser/PWA install flow, not app pages
      */
-    "/((?!login|api/auth|api/setup|_next/static|_next/image|favicon.ico|manifest\\.webmanifest|icon\\.svg|icon-192\\.png|icon-512\\.png).*)",
+    "/((?!login|api/auth|api/setup|api/signup(?!-)|_next/static|_next/image|favicon.ico|manifest\\.webmanifest|icon\\.svg|icon-192\\.png|icon-512\\.png).*)",
   ],
 };

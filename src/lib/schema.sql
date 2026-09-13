@@ -13,6 +13,42 @@ CREATE TABLE IF NOT EXISTS players (
   active     INTEGER NOT NULL DEFAULT 1
 );
 
+-- Pending account requests from the sign-up form on /login. An owner or
+-- admin approves (row becomes a real players account) or denies (row and
+-- its hash are just deleted) — either way this table never holds a row
+-- older than SIGNUP_TTL_MINUTES (see lib/signupRequests.ts).
+CREATE TABLE IF NOT EXISTS signup_requests (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  name          TEXT    NOT NULL,
+  username      TEXT    NOT NULL,
+  password_hash TEXT    NOT NULL,
+  requested_at  TEXT    NOT NULL,
+  expires_at    TEXT    NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_signup_username ON signup_requests(username COLLATE NOCASE);
+
+-- Append-only activity record, visible to everyone in Settings. The two
+-- triggers below make "immutable" a real guarantee rather than just a
+-- convention nothing happens to violate — there is deliberately no code
+-- path anywhere in the app that updates or deletes a row here.
+CREATE TABLE IF NOT EXISTS changelog (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_id   INTEGER REFERENCES players(id),
+  actor_name TEXT    NOT NULL,
+  action     TEXT    NOT NULL,
+  summary    TEXT    NOT NULL,
+  created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_changelog_created ON changelog(created_at DESC);
+
+CREATE TRIGGER IF NOT EXISTS changelog_immutable_update
+BEFORE UPDATE ON changelog
+BEGIN SELECT RAISE(ABORT, 'changelog is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS changelog_immutable_delete
+BEFORE DELETE ON changelog
+BEGIN SELECT RAISE(ABORT, 'changelog is immutable'); END;
+
 CREATE TABLE IF NOT EXISTS games (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   name              TEXT    NOT NULL UNIQUE,

@@ -1,16 +1,45 @@
+import { AccountRequests } from "@/components/AccountRequests";
 import { AdminActions } from "@/components/AdminActions";
+import { ChangelogView } from "@/components/ChangelogView";
 import { PageHeader } from "@/components/ui";
-import { all, get } from "@/lib/db";
-import { dashboardSummary } from "@/lib/queries";
+import { UserManagement } from "@/components/UserManagement";
+import { currentPlayer } from "@/lib/auth";
+import { getChangelog } from "@/lib/changelog";
+import { all, get, pruneExpiredSignupRequests } from "@/lib/db";
+import { dashboardSummary, getPlayers } from "@/lib/queries";
+import { isStaff } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
+interface SignupRequestRow {
+  id: number;
+  name: string;
+  username: string;
+  requested_at: string;
+  expires_at: string;
+}
+
 export default async function SettingsPage() {
+  const me = await currentPlayer();
+  const staff = !!me && isStaff(me.role);
+
   const summary = dashboardSummary();
   const snapshots = get<{ n: number }>("SELECT COUNT(*) AS n FROM rating_snapshots")!;
   const seasons = all<{ id: number; name: string; started_at: string; active: number }>(
     "SELECT * FROM seasons ORDER BY id DESC",
   );
+
+  let pendingRequests: SignupRequestRow[] = [];
+  let allPlayers: ReturnType<typeof getPlayers> = [];
+  if (staff) {
+    pruneExpiredSignupRequests();
+    pendingRequests = all<SignupRequestRow>(
+      "SELECT id, name, username, requested_at, expires_at FROM signup_requests ORDER BY id ASC",
+    );
+    allPlayers = getPlayers(true);
+  }
+
+  const changelog = getChangelog();
 
   return (
     <div className="space-y-5">
@@ -45,7 +74,15 @@ export default async function SettingsPage() {
         </p>
       </section>
 
-      <AdminActions seasons={seasons} />
+      {staff && me && (
+        <>
+          <AccountRequests requests={pendingRequests} />
+          <UserManagement players={allPlayers} me={me} />
+          <AdminActions seasons={seasons} />
+        </>
+      )}
+
+      <ChangelogView entries={changelog} />
     </div>
   );
 }

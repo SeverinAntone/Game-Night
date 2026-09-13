@@ -23,6 +23,7 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "rating_snapshots", column: "variant", definition: "TEXT NOT NULL DEFAULT ''" },
   { table: "players", column: "username", definition: "TEXT" },
   { table: "players", column: "password_hash", definition: "TEXT" },
+  { table: "players", column: "role", definition: "TEXT NOT NULL DEFAULT 'standard'" },
 ];
 
 /**
@@ -57,6 +58,53 @@ function backfillUsernames(db: Database.Database) {
   }
 }
 
+/**
+ * The role system landed after several accounts already existed, so there
+ * has to be exactly one moment where somebody becomes the first owner
+ * without anyone clicking a button — otherwise nobody could ever grant
+ * roles at all. Runs once: the moment any owner exists, this is a no-op on
+ * every future boot.
+ *
+ * Defaults to the earliest player (lowest id) — usually whoever set the app
+ * up originally, but "usually" isn't good enough to bet an unrecoverable
+ * choice on (once granted, nothing in the app can demote an owner — that's
+ * deliberate, see lib/roles.ts). Set INITIAL_OWNER_USERNAME to name the
+ * account explicitly instead of leaving it to row order.
+ */
+function ensureOwnerExists(db: Database.Database) {
+  const owners = db.prepare("SELECT COUNT(*) AS n FROM players WHERE role = 'owner'").get() as {
+    n: number;
+  };
+  if (owners.n > 0) return;
+
+  const preferred = process.env.INITIAL_OWNER_USERNAME?.trim();
+  if (preferred) {
+    const match = db
+      .prepare("SELECT id FROM players WHERE username = ? COLLATE NOCASE")
+      .get(preferred) as { id: number } | undefined;
+    if (match) {
+      db.prepare("UPDATE players SET role = 'owner' WHERE id = ?").run(match.id);
+      return;
+    }
+    console.error(
+      `INITIAL_OWNER_USERNAME="${preferred}" doesn't match any existing player — ` +
+        "falling back to the earliest account instead.",
+    );
+  }
+
+  const first = db.prepare("SELECT id FROM players ORDER BY id ASC LIMIT 1").get() as
+    | { id: number }
+    | undefined;
+  if (first) db.prepare("UPDATE players SET role = 'owner' WHERE id = ?").run(first.id);
+}
+
+export const SIGNUP_TTL_MINUTES = 10;
+
+/** Deletes any pending sign-up request (and its stored password hash) past its 10-minute TTL. */
+export function pruneExpiredSignupRequests() {
+  run("DELETE FROM signup_requests WHERE expires_at < ?", nowIso());
+}
+
 function migrate(db: Database.Database) {
   for (const { table, column, definition } of ADDED_COLUMNS) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -69,6 +117,7 @@ function migrate(db: Database.Database) {
   db.exec(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_players_username ON players(username COLLATE NOCASE)",
   );
+  ensureOwnerExists(db);
 }
 
 function open(): Database.Database {
@@ -84,6 +133,18 @@ function open(): Database.Database {
   db.pragma("wal_checkpoint(TRUNCATE)");
   db.exec(fs.readFileSync(SCHEMA_PATH, "utf8"));
   migrate(db);
+  // Belt-and-suspenders for the 10-minute sign-up TTL: every route that
+  // touches signup_requests prunes on its way in too, but this catches the
+  // case where nobody happens to hit one of those routes for a while — a
+  // stale request (and the password hash sitting in it) shouldn't just wait
+  // around for the next admin visit.
+  setInterval(() => {
+    try {
+      db.prepare("DELETE FROM signup_requests WHERE expires_at < ?").run(new Date().toISOString());
+    } catch {
+      /* best-effort background cleanup — a missed tick isn't worth logging */
+    }
+  }, 60_000).unref();
   return db;
 }
 

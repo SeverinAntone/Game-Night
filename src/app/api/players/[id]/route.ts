@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { currentPlayer, hashPassword, verifyPassword } from "@/lib/auth";
+import { logChange } from "@/lib/changelog";
 import { run } from "@/lib/db";
-import { getPlayerRow } from "@/lib/queries";
+import { getPlayer, getPlayerRow } from "@/lib/queries";
+import { canManage } from "@/lib/roles";
+import { requireStaff } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "You can only edit your own profile." }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
+
+  // Disabled accounts are read-only, with one carve-out: they can still
+  // change their own password (account hygiene, not "using the app").
+  if (signedIn.role === "disabled") {
+    const otherFields = ["name", "emoji", "color", "tagline", "active"].some((k) => k in body);
+    if (otherFields)
+      return NextResponse.json(
+        { error: "This account is view-only — you can still change your password." },
+        { status: 403 },
+      );
+  }
+
   const fields: string[] = [];
   const values: unknown[] = [];
 
@@ -52,8 +67,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
-  // Soft delete only — hard-deleting a player would rewrite everyone's history.
+  const auth = await requireStaff();
+  if ("error" in auth) return auth.error;
+  const { player: actor } = auth;
+
   const id = Number((await params).id);
+  const target = getPlayer(id);
+  if (!target) return NextResponse.json({ error: "No such player." }, { status: 404 });
+
+  if (!canManage(actor.id, actor.role, target.id, target.role))
+    return NextResponse.json({ error: "You can't remove this account." }, { status: 403 });
+
+  // Soft delete only — hard-deleting a player would rewrite everyone's history.
   run("UPDATE players SET active = 0 WHERE id = ?", id);
+  logChange(actor, "player.remove", `Removed ${target.name} from the roster`);
   return NextResponse.json({ ok: true });
 }

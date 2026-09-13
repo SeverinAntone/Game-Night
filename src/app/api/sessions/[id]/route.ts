@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getParticipants, getSession } from "@/lib/queries";
+import { requireWriter } from "@/lib/apiAuth";
+import { logChange } from "@/lib/changelog";
+import { getGame, getParticipants, getSession } from "@/lib/queries";
 import { deleteSession, updateSession, ValidationError } from "@/lib/sessions";
 import { parseTags, type SessionInput } from "@/lib/types";
 
@@ -19,11 +21,18 @@ export async function GET(_req: Request, { params }: Ctx) {
 
 /** Editing replays every rating from scratch (§9) — mis-entries are cheap to fix. */
 export async function PATCH(req: Request, { params }: Ctx) {
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const { player: actor } = auth;
+
   const id = Number((await params).id);
+  const existing = getSession(id);
   const body = (await req.json().catch(() => null)) as SessionInput | null;
   if (!body) return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   try {
     updateSession(id, body);
+    const game = getGame(body.game_id ?? existing?.game_id ?? 0);
+    logChange(actor, "session.edit", `Edited a session of ${game?.name ?? "a game"}`);
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
@@ -33,6 +42,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
-  deleteSession(Number((await params).id));
+  const auth = await requireWriter();
+  if ("error" in auth) return auth.error;
+  const { player: actor } = auth;
+
+  const id = Number((await params).id);
+  const existing = getSession(id);
+  const game = existing ? getGame(existing.game_id) : undefined;
+  deleteSession(id);
+  logChange(actor, "session.delete", `Deleted a session of ${game?.name ?? "a game"}`);
   return NextResponse.json({ ok: true });
 }

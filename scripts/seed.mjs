@@ -10,8 +10,10 @@
  * the same validation and rating replay as one logged from a phone.
  *
  * Every route this script calls now requires a signed-in session (the app
- * requires an account for everything — see middleware.ts). Create the first
- * account at /login before running this, then point this script at it:
+ * requires an account for everything — see middleware.ts), and creating the
+ * demo players specifically requires that account to be an owner or admin
+ * (see api/signup-requests — signup now goes through the same request +
+ * approval flow as everyone else, this script just does both halves itself).
  *
  *   BGN_SEED_USERNAME=you BGN_SEED_PASSWORD=yourpassword npm run seed
  */
@@ -154,7 +156,16 @@ async function main() {
 
   const playerIds = {};
   for (const p of PLAYERS) {
-    const { id } = await api("/api/players", p);
+    await api("/api/signup", {
+      name: p.name,
+      username: p.username,
+      password: p.password,
+      password_confirm: p.password,
+    });
+    const pending = await api("/api/signup-requests", null, "GET");
+    const match = pending.find((r) => r.username.toLowerCase() === p.username.toLowerCase());
+    if (!match) throw new Error(`No pending request found for ${p.username} — did signup fail?`);
+    const { id } = await api(`/api/signup-requests/${match.id}`, { action: "approve" });
     playerIds[p.name] = id;
     console.log(`  player ${p.emoji} ${p.name}`);
   }

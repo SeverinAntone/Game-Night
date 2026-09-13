@@ -14,6 +14,8 @@ export type RatingDimension = "none" | "single-tag" | "multi-tag";
  */
 export type ResultMode = "ranked" | "winner-only";
 
+export type Role = "owner" | "admin" | "standard" | "disabled";
+
 /**
  * The player shape that is safe to hand to the browser. Credential hashes
  * live only in `PlayerRow`, which never leaves the server.
@@ -25,6 +27,7 @@ export interface Player {
   color: string;
   tagline: string | null;
   username: string;
+  role: Role;
   /** 1 when this account still needs to set a password (pre-migration). */
   needs_password_setup: number;
   join_date: string;

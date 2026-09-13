@@ -221,6 +221,7 @@ export function buildReveal(sessionId: number): Reveal | null {
         color: p.color,
         tagline: null,
         username: p.name,
+        role: "standard",
         needs_password_setup: 0,
         join_date: "",
         active: 1,

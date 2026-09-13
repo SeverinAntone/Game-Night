@@ -58,6 +58,9 @@ export async function POST(req: Request) {
     if (newPassword.length < 8) {
       return NextResponse.json({ error: "Password needs to be at least 8 characters." }, { status: 400 });
     }
+    if (newPassword !== String(body.new_password_confirm ?? "")) {
+      return NextResponse.json({ error: "Passwords don't match." }, { status: 400 });
+    }
     // pin_hash is cleared, not left around unused — it can't sign anyone in
     // anymore, so there's no reason to keep a working weak credential on file.
     run(

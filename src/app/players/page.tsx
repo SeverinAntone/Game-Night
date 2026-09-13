@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { AddPlayer } from "@/components/AddPlayer";
 import { Avatar, Empty, PageHeader, TierBadge } from "@/components/ui";
 import { getPlayers, overallComposite, playerStats } from "@/lib/queries";
 import { tierForComposite } from "@/lib/rating";
@@ -15,14 +14,13 @@ export default function PlayersPage() {
       <PageHeader
         title="The regulars"
         subtitle={`${players.filter((p) => p.active).length} active`}
-        action={<AddPlayer />}
       />
 
       {players.length === 0 ? (
         <Empty
           icon="🃏"
           title="No players yet"
-          body="Add everyone who shows up. Each person gets their own username and password to sign in with."
+          body="New players request an account from the sign-in page — an owner or admin approves it from Settings."
         />
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2">

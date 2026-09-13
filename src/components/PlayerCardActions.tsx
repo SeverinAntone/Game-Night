@@ -17,6 +17,7 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
   const [active, setActive] = useState(!!player.active);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
     setEditing(false);
     setCurrentPassword("");
     setNewPassword("");
+    setNewPasswordConfirm("");
     router.refresh();
   }
 
@@ -111,6 +113,18 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
             onChange={(e) => setNewPassword(e.target.value)}
             minLength={8}
           />
+          <input
+            type="password"
+            name="new-password-confirm"
+            className="input"
+            placeholder="Confirm new password"
+            autoComplete="new-password"
+            value={newPasswordConfirm}
+            onChange={(e) => setNewPasswordConfirm(e.target.value)}
+          />
+          {newPasswordConfirm && newPassword !== newPasswordConfirm && (
+            <p className="text-[11px] text-rose-brand">Passwords don&apos;t match.</p>
+          )}
         </div>
       </div>
 
@@ -122,7 +136,11 @@ export function PlayerCardActions({ player, isMe }: { player: Player; isMe: bool
         <button
           className="btn-primary flex-1"
           onClick={save}
-          disabled={busy || (!!newPassword && (newPassword.length < 8 || !currentPassword))}
+          disabled={
+            busy ||
+            (!!newPassword &&
+              (newPassword.length < 8 || !currentPassword || newPassword !== newPasswordConfirm))
+          }
         >
           {busy ? "Saving…" : "Save"}
         </button>

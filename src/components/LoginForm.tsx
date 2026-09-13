@@ -12,6 +12,7 @@ export function LoginForm({ next }: { next: string }) {
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bounceWarning, setBounceWarning] = useState(false);
@@ -42,7 +43,7 @@ export function LoginForm({ next }: { next: string }) {
     const body =
       mode === "password"
         ? { username, password }
-        : { username, pin, new_password: newPassword };
+        : { username, pin, new_password: newPassword, new_password_confirm: newPasswordConfirm };
 
     const res = await fetch("/api/auth", {
       method: "POST",
@@ -154,6 +155,23 @@ export function LoginForm({ next }: { next: string }) {
             />
             <p className="mt-1 text-[11px] text-mist-400">At least 8 characters.</p>
           </div>
+          <div>
+            <label className="label" htmlFor="new-password-confirm">
+              Confirm new password
+            </label>
+            <input
+              id="new-password-confirm"
+              name="new-password-confirm"
+              type="password"
+              className="input"
+              autoComplete="new-password"
+              value={newPasswordConfirm}
+              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+            />
+            {newPasswordConfirm && newPassword !== newPasswordConfirm && (
+              <p className="mt-1 text-[11px] text-rose-brand">Passwords don&apos;t match.</p>
+            )}
+          </div>
           <button
             type="button"
             className="text-xs font-semibold text-mist-400"
@@ -175,7 +193,9 @@ export function LoginForm({ next }: { next: string }) {
         disabled={
           busy ||
           !username.trim() ||
-          (mode === "password" ? !password : pin.length < 4 || newPassword.length < 8)
+          (mode === "password"
+            ? !password
+            : pin.length < 4 || newPassword.length < 8 || newPassword !== newPasswordConfirm)
         }
       >
         {busy ? "…" : mode === "password" ? "Sign in" : "Set password & sign in"}
