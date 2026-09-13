@@ -27,6 +27,26 @@ CREATE TABLE IF NOT EXISTS signup_requests (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_signup_username ON signup_requests(username COLLATE NOCASE);
 
+-- Password recovery for an account that's already real — deliberately a
+-- separate table from signup_requests, not a variant of it, since the two
+-- have very different trust implications: approving a signup hands out a
+-- brand new, no-history, standard-role account; approving a reset hands
+-- back control of whatever that account already is, up to and including
+-- Owner. The claim token lets the *requester's own browser* find its way
+-- back to this row later (to poll status, then to finalize) without that
+-- ability being derivable from the username alone — only the raw token,
+-- returned once at creation and never stored, proves "this is the browser
+-- that asked." Only its hash lives here, same reasoning as password_hash.
+CREATE TABLE IF NOT EXISTS password_reset_requests (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id     INTEGER NOT NULL REFERENCES players(id),
+  token_hash    TEXT    NOT NULL UNIQUE,
+  requested_at  TEXT    NOT NULL,
+  expires_at    TEXT    NOT NULL,
+  approved_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_reset_player ON password_reset_requests(player_id);
+
 -- Append-only activity record, visible to everyone in Settings. The two
 -- triggers below make "immutable" a real guarantee rather than just a
 -- convention nothing happens to violate — there is deliberately no code

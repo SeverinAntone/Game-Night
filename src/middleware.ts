@@ -43,10 +43,15 @@ export const config = {
      *                        (?!-) below stops it from also matching
      *                        /api/signup-requests, which is staff-only and
      *                        must stay behind the gate)
+     *  - /api/password-reset requests/checks/finalizes a password reset for
+     *                        an existing account — has to work with no
+     *                        working credential at all, that's the point.
+     *                        Same (?!-) trick keeps /api/password-reset-
+     *                        requests (staff-only, approve/deny) gated.
      *  - /_next/*            Next.js's own build assets
      *  - known public files  manifest + icons referenced directly by the
      *                        browser/PWA install flow, not app pages
      */
-    "/((?!login|api/auth|api/setup|api/signup(?!-)|_next/static|_next/image|favicon.ico|manifest\\.webmanifest|icon\\.svg|icon-192\\.png|icon-512\\.png).*)",
+    "/((?!login|api/auth|api/setup|api/signup(?!-)|api/password-reset(?!-)|_next/static|_next/image|favicon.ico|manifest\\.webmanifest|icon\\.svg|icon-192\\.png|icon-512\\.png).*)",
   ],
 };

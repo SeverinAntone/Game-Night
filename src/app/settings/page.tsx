@@ -1,11 +1,12 @@
 import { AccountRequests } from "@/components/AccountRequests";
 import { AdminActions } from "@/components/AdminActions";
 import { ChangelogView } from "@/components/ChangelogView";
+import { PasswordResetRequests } from "@/components/PasswordResetRequests";
 import { PageHeader } from "@/components/ui";
 import { UserManagement } from "@/components/UserManagement";
 import { currentPlayer } from "@/lib/auth";
-import { getChangelog } from "@/lib/changelog";
-import { all, get, pruneExpiredSignupRequests } from "@/lib/db";
+import { getChangelog, type ChangelogEntry, type ChangelogTargetType } from "@/lib/changelog";
+import { all, get, pruneExpiredResetRequests, pruneExpiredSignupRequests } from "@/lib/db";
 import { dashboardSummary, getPlayers } from "@/lib/queries";
 import { isStaff } from "@/lib/roles";
 
@@ -19,6 +20,49 @@ interface SignupRequestRow {
   expires_at: string;
 }
 
+interface ResetRequestRow {
+  id: number;
+  player_id: number;
+  name: string;
+  username: string;
+  requested_at: string;
+  expires_at: string;
+  approved_at: string | null;
+}
+
+const TARGET_TABLE: Record<ChangelogTargetType, string> = {
+  game: "games",
+  session: "sessions",
+  player: "players",
+};
+
+/**
+ * Which of the changelog's linked records are still actually there — a
+ * game.delete or session.delete entry points at something that, by
+ * definition, no longer exists, and this is what tells ChangelogView to
+ * show that id as plain text instead of a broken link.
+ */
+function existingTargets(entries: ChangelogEntry[]): Set<string> {
+  const idsByType = new Map<ChangelogTargetType, number[]>();
+  for (const e of entries) {
+    if (!e.target_type || e.target_id == null) continue;
+    const list = idsByType.get(e.target_type) ?? [];
+    list.push(e.target_id);
+    idsByType.set(e.target_type, list);
+  }
+
+  const found = new Set<string>();
+  for (const [type, ids] of idsByType) {
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = all<{ id: number }>(
+      `SELECT id FROM ${TARGET_TABLE[type]} WHERE id IN (${placeholders})`,
+      ...ids,
+    );
+    for (const row of rows) found.add(`${type}:${row.id}`);
+  }
+  return found;
+}
+
 export default async function SettingsPage() {
   const me = await currentPlayer();
   const staff = !!me && isStaff(me.role);
@@ -30,16 +74,24 @@ export default async function SettingsPage() {
   );
 
   let pendingRequests: SignupRequestRow[] = [];
+  let pendingResets: ResetRequestRow[] = [];
   let allPlayers: ReturnType<typeof getPlayers> = [];
   if (staff) {
     pruneExpiredSignupRequests();
+    pruneExpiredResetRequests();
     pendingRequests = all<SignupRequestRow>(
       "SELECT id, name, username, requested_at, expires_at FROM signup_requests ORDER BY id ASC",
+    );
+    pendingResets = all<ResetRequestRow>(
+      `SELECT r.id, r.player_id, p.name, p.username, r.requested_at, r.expires_at, r.approved_at
+         FROM password_reset_requests r JOIN players p ON p.id = r.player_id
+        ORDER BY r.id ASC`,
     );
     allPlayers = getPlayers(true);
   }
 
   const changelog = getChangelog();
+  const liveTargets = existingTargets(changelog);
 
   return (
     <div className="space-y-5">
@@ -77,12 +129,13 @@ export default async function SettingsPage() {
       {staff && me && (
         <>
           <AccountRequests requests={pendingRequests} />
+          <PasswordResetRequests requests={pendingResets} />
           <UserManagement players={allPlayers} me={me} />
           <AdminActions seasons={seasons} />
         </>
       )}
 
-      <ChangelogView entries={changelog} />
+      <ChangelogView entries={changelog} liveTargets={liveTargets} />
     </div>
   );
 }

@@ -135,6 +135,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       "game.edit",
       `Edited ${game.name}'s settings`,
       changes.length ? changes.join("\n") : undefined,
+      { type: "game", id: game.id },
     );
   return NextResponse.json({ ok: true, replayed: structural });
 }
@@ -155,6 +156,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
       "game.retire",
       `Retired ${game?.name ?? "a game"}`,
       `${played.n} logged session${played.n === 1 ? "" : "s"} kept intact`,
+      { type: "game", id },
     );
     return NextResponse.json({ ok: true, retired: true });
   }
@@ -164,6 +166,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     "game.delete",
     `Deleted ${game?.name ?? "a game"}`,
     game ? `Never played — ${game.scoring_mode}, ${game.min_players ?? "?"}–${game.max_players ?? "?"} players` : undefined,
+    { type: "game", id },
   );
   return NextResponse.json({ ok: true, deleted: true });
 }

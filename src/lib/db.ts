@@ -24,6 +24,12 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "players", column: "username", definition: "TEXT" },
   { table: "players", column: "password_hash", definition: "TEXT" },
   { table: "players", column: "role", definition: "TEXT NOT NULL DEFAULT 'standard'" },
+  // changelog already shipped once (see the roles/airlock patch), so these
+  // two are an upgrade to an existing table, not part of its original
+  // CREATE TABLE — same reason username/password_hash/role above are here
+  // instead of in schema.sql's players definition.
+  { table: "changelog", column: "target_type", definition: "TEXT" },
+  { table: "changelog", column: "target_id", definition: "INTEGER" },
 ];
 
 /**
@@ -105,6 +111,17 @@ export function pruneExpiredSignupRequests() {
   run("DELETE FROM signup_requests WHERE expires_at < ?", nowIso());
 }
 
+// Longer than signup's 10 minutes: approving one of these usually means an
+// owner/admin actually checking with the person first ("is this really
+// you?"), not just glancing at a name — worth giving that more room than
+// an instant judgment call on a brand new account.
+export const RESET_TTL_MINUTES = 30;
+
+/** Deletes any password-reset request (approved or not, and its claim token) past its TTL. */
+export function pruneExpiredResetRequests() {
+  run("DELETE FROM password_reset_requests WHERE expires_at < ?", nowIso());
+}
+
 function migrate(db: Database.Database) {
   for (const { table, column, definition } of ADDED_COLUMNS) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -140,7 +157,9 @@ function open(): Database.Database {
   // around for the next admin visit.
   setInterval(() => {
     try {
-      db.prepare("DELETE FROM signup_requests WHERE expires_at < ?").run(new Date().toISOString());
+      const now = new Date().toISOString();
+      db.prepare("DELETE FROM signup_requests WHERE expires_at < ?").run(now);
+      db.prepare("DELETE FROM password_reset_requests WHERE expires_at < ?").run(now);
     } catch {
       /* best-effort background cleanup — a missed tick isn't worth logging */
     }

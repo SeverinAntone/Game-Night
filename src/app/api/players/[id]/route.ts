@@ -85,6 +85,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     "player.remove",
     `Removed ${target.name} from the roster`,
     `Was: ${target.role} · @${target.username}`,
+    { type: "player", id: target.id },
   );
   return NextResponse.json({ ok: true });
 }

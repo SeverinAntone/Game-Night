@@ -37,6 +37,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     actor,
     "role.change",
     `Changed ${target.name}'s role from ${target.role} to ${newRole}`,
+    undefined,
+    { type: "player", id: target.id },
   );
   return NextResponse.json({ ok: true });
 }

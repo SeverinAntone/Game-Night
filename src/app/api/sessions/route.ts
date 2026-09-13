@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       "session.create",
       `Logged a session of ${game?.name ?? "a game"}`,
       `${body.played_at ? formatGameDateLong(body.played_at) + " — " : ""}${describeParticipants(body.participants)}`,
+      { type: "session", id },
     );
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {

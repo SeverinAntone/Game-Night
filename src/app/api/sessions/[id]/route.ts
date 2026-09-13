@@ -40,6 +40,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       "session.edit",
       `Edited a session of ${game?.name ?? "a game"}`,
       before !== null && before !== after ? `Before: ${before}\nAfter:  ${after}` : `Players: ${after}`,
+      { type: "session", id },
     );
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -59,6 +60,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   const game = existing ? getGame(existing.game_id) : undefined;
   const wasPlaying = existing ? describeParticipants(getParticipants(id)) : undefined;
   deleteSession(id);
-  logChange(actor, "session.delete", `Deleted a session of ${game?.name ?? "a game"}`, wasPlaying);
+  logChange(
+    actor,
+    "session.delete",
+    `Deleted a session of ${game?.name ?? "a game"}`,
+    wasPlaying,
+    { type: "session", id },
+  );
   return NextResponse.json({ ok: true });
 }

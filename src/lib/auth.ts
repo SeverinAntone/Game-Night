@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getPlayer } from "./queries";
 import { COOKIE, makeSessionToken, readSessionToken, SESSION_DAYS } from "./authToken";
@@ -53,6 +53,29 @@ export function verifyPin(pin: string, hash: string | null): boolean {
   const a = Buffer.from(key, "hex");
   const b = scryptSync(pin, salt, 32);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ---------------------------------------------------------------------------
+// Password-reset claim tokens
+// ---------------------------------------------------------------------------
+
+/**
+ * A password-reset request's bearer credential. Unlike a password, this is
+ * already high-entropy and single-use, so a fast hash (SHA-256) is the right
+ * tool — no need for scrypt's deliberate slowness, which exists specifically
+ * to slow down guessing a human-chosen secret. What matters here is that the
+ * database never holds a usable copy: only makeResetToken's caller ever sees
+ * the raw value, exactly once. Looked up by hash equality in a WHERE clause
+ * (same pattern as API-key hashing) — there's no separate "verify" step
+ * because there's nothing to compare against except the row the hash itself
+ * finds.
+ */
+export function makeResetToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export function hashResetToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 // ---------------------------------------------------------------------------

@@ -70,6 +70,7 @@ export async function POST(req: Request) {
       b.high_score_wins === false ? 0 : 1,
       nowIso(),
     );
+    const newId = Number(res.lastInsertRowid);
     logChange(
       actor,
       "game.add",
@@ -77,8 +78,9 @@ export async function POST(req: Request) {
       `${scoring_mode}${
         b.min_players || b.max_players ? `, ${b.min_players ?? "?"}–${b.max_players ?? "?"} players` : ""
       }${rating_dimension !== "none" ? `, rated by ${b.tag_label || "Tag"}` : ""}`,
+      { type: "game", id: newId },
     );
-    return NextResponse.json({ id: Number(res.lastInsertRowid) }, { status: 201 });
+    return NextResponse.json({ id: newId }, { status: 201 });
   } catch (e) {
     const msg =
       e instanceof Error && e.message.includes("UNIQUE")

@@ -52,6 +52,7 @@ export async function POST(req: Request, { params }: Ctx) {
       "signup.approve",
       `Approved ${pending.username}'s account request`,
       `Name: ${pending.name} · Requested ${formatGameDate(pending.requested_at)} at ${formatGameTime(pending.requested_at)}`,
+      { type: "player", id: newId },
     );
     return NextResponse.json({ ok: true, id: newId });
   }
