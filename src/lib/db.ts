@@ -25,9 +25,21 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "players", column: "password_hash", definition: "TEXT" },
   { table: "players", column: "role", definition: "TEXT NOT NULL DEFAULT 'standard'" },
   // changelog already shipped once (see the roles/airlock patch), so these
-  // two are an upgrade to an existing table, not part of its original
+  // are an upgrade to an existing table, not part of its original
   // CREATE TABLE — same reason username/password_hash/role above are here
   // instead of in schema.sql's players definition.
+  //
+  // `details` in particular was a real bug, not just a style choice: it got
+  // added straight to schema.sql's CREATE TABLE instead of here, which is a
+  // silent no-op on a database where `changelog` already exists — CREATE
+  // TABLE IF NOT EXISTS never retroactively adds a column. The result: every
+  // logChange() call's INSERT named a column the live table didn't have,
+  // which throws, which happened *after* the action it was logging had
+  // already committed — so the action would succeed while the request still
+  // came back as an error, and nothing ever actually got logged. Listing it
+  // here is what actually fixes an existing database; see also logChange()
+  // itself, which no longer lets a logging failure fail the request at all.
+  { table: "changelog", column: "details", definition: "TEXT" },
   { table: "changelog", column: "target_type", definition: "TEXT" },
   { table: "changelog", column: "target_id", definition: "INTEGER" },
 ];

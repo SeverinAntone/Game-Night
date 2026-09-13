@@ -27,6 +27,16 @@ export interface ChangelogEntry {
  * given, is what lets the Settings changelog show a stable #id and — if
  * the record still exists — a link straight to it, which is the difference
  * between "some session of Catan got edited" and "the one at /session/42."
+ *
+ * Deliberately swallows its own errors. This used to not — a schema drift
+ * bug once put a column in this INSERT that the live table didn't have,
+ * which threw here, *after* the real action (the session that got logged,
+ * the account that got approved) had already committed. The user saw a
+ * failed request for something that had, in fact, worked. Every caller
+ * always runs its real mutation before calling this, so the accountability
+ * trail is genuinely secondary — worth having, never worth risking the
+ * primary action over. A failure here is logged to the server console
+ * instead, for whoever's actually watching it, not surfaced to the user.
  */
 export function logChange(
   actor: { id: number; name: string },
@@ -35,18 +45,22 @@ export function logChange(
   details?: string,
   target?: { type: ChangelogTargetType; id: number },
 ) {
-  run(
-    `INSERT INTO changelog (actor_id, actor_name, action, summary, details, target_type, target_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    actor.id,
-    actor.name,
-    action,
-    summary,
-    details ?? null,
-    target?.type ?? null,
-    target?.id ?? null,
-    nowIso(),
-  );
+  try {
+    run(
+      `INSERT INTO changelog (actor_id, actor_name, action, summary, details, target_type, target_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      actor.id,
+      actor.name,
+      action,
+      summary,
+      details ?? null,
+      target?.type ?? null,
+      target?.id ?? null,
+      nowIso(),
+    );
+  } catch (err) {
+    console.error(`logChange failed for action "${action}" (the underlying change still happened):`, err);
+  }
 }
 
 export const getChangelog = (limit = 200) =>

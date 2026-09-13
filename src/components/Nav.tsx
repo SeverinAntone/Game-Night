@@ -12,7 +12,7 @@ const TABS = [
   { href: "/players", label: "Players", icon: "🃏" },
 ];
 
-const RAIL = [
+export const RAIL = [
   { href: "/", label: "Home", icon: "🏠" },
   { href: "/play", label: "Log a session", icon: "➕" },
   { href: "/leaderboard", label: "Leaderboard", icon: "🏆" },
@@ -71,7 +71,7 @@ export function NavTabs() {
 export function NavRail({ player }: { player: { name: string } | null }) {
   const pathname = usePathname();
   return (
-    <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 py-8 md:flex">
+    <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 overflow-y-auto py-8 md:flex">
       <Link href="/" className="mb-6 block font-display text-xl font-extrabold tracking-tight">
         <span className="text-grape-400">🎲</span> Game Night
       </Link>
@@ -92,7 +92,7 @@ export function NavRail({ player }: { player: { name: string } | null }) {
           </Link>
         );
       })}
-      <div className="mt-auto">
+      <div className="mt-auto pt-4">
         <WhoAmI player={player} />
       </div>
     </aside>

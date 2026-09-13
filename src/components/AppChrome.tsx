@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NavTabs, NavRail } from "./Nav";
+import { MobileMenu } from "./MobileMenu";
 import { SwipeNav } from "./SwipeNav";
 import { WhoAmI } from "./WhoAmI";
 import { LOGIN_REDIRECT_FLAG } from "@/lib/uiFlags";
@@ -50,9 +51,12 @@ export function AppChrome({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-40 -mx-0 border-b border-white/5 bg-ink-950/70 px-4 py-3 backdrop-blur-lg md:hidden">
             <div className="flex items-center justify-between">
-              <Link href="/" className="font-display text-lg font-extrabold tracking-tight">
-                <span className="text-grape-400">🎲</span> Game Night
-              </Link>
+              <div className="flex items-center gap-2">
+                <MobileMenu player={player} />
+                <Link href="/" className="font-display text-lg font-extrabold tracking-tight">
+                  <span className="text-grape-400">🎲</span> Game Night
+                </Link>
+              </div>
               <WhoAmI player={player} />
             </div>
           </header>
