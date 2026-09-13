@@ -8,14 +8,42 @@
  *
  * It talks to the running app over HTTP, so every session goes through exactly
  * the same validation and rating replay as one logged from a phone.
+ *
+ * Every route this script calls now requires a signed-in session (the app
+ * requires an account for everything — see middleware.ts). Create the first
+ * account at /login before running this, then point this script at it:
+ *
+ *   BGN_SEED_USERNAME=you BGN_SEED_PASSWORD=yourpassword npm run seed
  */
 
 const BASE = process.env.BGN_URL ?? "http://localhost:3000";
+let sessionCookie = "";
+
+async function login() {
+  const username = process.env.BGN_SEED_USERNAME;
+  const password = process.env.BGN_SEED_PASSWORD;
+  if (!username || !password) {
+    throw new Error(
+      "Set BGN_SEED_USERNAME and BGN_SEED_PASSWORD to an existing account before running " +
+        "this — every route now requires being signed in. Create the first account at " +
+        `${BASE}/login if you haven't yet.`,
+    );
+  }
+  const res = await fetch(`${BASE}/api/auth`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) throw new Error(`Could not sign in as ${username} — check BGN_SEED_PASSWORD.`);
+  const setCookie = res.headers.get("set-cookie");
+  if (!setCookie) throw new Error("Sign-in succeeded but no session cookie came back.");
+  sessionCookie = setCookie.split(";")[0];
+}
 
 async function api(path, body, method = "POST") {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", cookie: sessionCookie },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
@@ -24,11 +52,11 @@ async function api(path, body, method = "POST") {
 }
 
 const PLAYERS = [
-  { name: "Ada", emoji: "🦊", color: "#8b5cf6", tagline: "Reads the rulebook out loud" },
-  { name: "Bo", emoji: "🐙", color: "#38bdf8", tagline: "Always plays the weird faction" },
-  { name: "Cleo", emoji: "🦉", color: "#fbbf24", tagline: "Quietly wins by two points" },
-  { name: "Dev", emoji: "🦖", color: "#34d399", tagline: "Kingmaker, unrepentant" },
-  { name: "Wren", emoji: "🐝", color: "#fb7185", tagline: "Table talk specialist" },
+  { name: "Ada", username: "ada", password: "changeme123", emoji: "🦊", color: "#8b5cf6", tagline: "Reads the rulebook out loud" },
+  { name: "Bo", username: "bo", password: "changeme123", emoji: "🐙", color: "#38bdf8", tagline: "Always plays the weird faction" },
+  { name: "Cleo", username: "cleo", password: "changeme123", emoji: "🦉", color: "#fbbf24", tagline: "Quietly wins by two points" },
+  { name: "Dev", username: "dev", password: "changeme123", emoji: "🦖", color: "#34d399", tagline: "Kingmaker, unrepentant" },
+  { name: "Wren", username: "wren", password: "changeme123", emoji: "🐝", color: "#fb7185", tagline: "Table talk specialist" },
 ];
 
 const GAMES = [
@@ -122,6 +150,7 @@ const rank = (names, game) =>
 
 async function main() {
   console.log(`Seeding ${BASE} …`);
+  await login();
 
   const playerIds = {};
   for (const p of PLAYERS) {

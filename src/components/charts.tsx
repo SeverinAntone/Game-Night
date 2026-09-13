@@ -3,6 +3,8 @@
  * are simple, and a charting library would outweigh them several times over.
  */
 
+import { formatGameDate, formatMonthYear } from "@/lib/dates";
+
 export function Sparkline({
   values,
   width = 120,
@@ -103,17 +105,17 @@ export function LineChart({
             <path d={d} fill="none" stroke={s.color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
             {sorted.map((p, i) => (
               <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r="2.6" fill={s.color}>
-                <title>{`${s.label}: ${Math.round(p.y)} — ${new Date(p.x).toLocaleDateString()}`}</title>
+                <title>{`${s.label}: ${Math.round(p.y)} — ${formatGameDate(p.x)}`}</title>
               </circle>
             ))}
           </g>
         );
       })}
       <text x={pad.l} y={H - 6} fill="#8f9bc4" fontSize="11">
-        {new Date(x0).toLocaleDateString(undefined, { month: "short", year: "2-digit" })}
+        {formatMonthYear(x0)}
       </text>
       <text x={W - pad.r} y={H - 6} fill="#8f9bc4" fontSize="11" textAnchor="end">
-        {new Date(x1).toLocaleDateString(undefined, { month: "short", year: "2-digit" })}
+        {formatMonthYear(x1)}
       </text>
     </svg>
   );

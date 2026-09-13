@@ -17,8 +17,8 @@ export default async function DraftPage() {
         <Empty
           icon="⚔️"
           title="Sign in first"
-          body="The draft is personal — it needs your name and PIN so it doesn't mix up whose taste is whose."
-          action={{ href: "/identity", label: "Sign in" }}
+          body="The draft is personal — it needs you signed in so it doesn't mix up whose taste is whose."
+          action={{ href: "/login", label: "Sign in" }}
         />
       </div>
     );

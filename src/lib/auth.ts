@@ -1,24 +1,45 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { get, run } from "./db";
 import { getPlayer } from "./queries";
+import { COOKIE, makeSessionToken, readSessionToken, SESSION_DAYS } from "./authToken";
 import type { Player } from "./types";
 
 /**
- * Deliberately lightweight identity (design doc §7). The app lives on a trusted
- * home network and needs no login to *log a session*; a name + PIN only gates
- * personal actions (your own Game Draft, editing your own profile).
+ * Real accounts (username + password), required to reach anything on the
+ * site — see `middleware.ts` for where that's enforced. This replaced a
+ * PIN-only scheme that made sense when the app only ever lived on one
+ * trusted home network; it doesn't once the same app is reachable from the
+ * open internet.
+ *
+ * `hashPin`/`verifyPin` stick around for exactly one purpose: letting
+ * someone who set a PIN under the old scheme prove who they are *once*, so
+ * they can set a real password. See the POST handler in
+ * `app/api/auth/route.ts`.
  */
 
-export const COOKIE = "bgn_player";
+export { COOKIE };
 
-function secret(): string {
-  const row = get<{ value: string }>("SELECT value FROM meta WHERE key = 'cookie_secret'");
-  if (row?.value) return row.value;
-  const s = randomBytes(32).toString("hex");
-  run("INSERT OR REPLACE INTO meta (key, value) VALUES ('cookie_secret', ?)", s);
-  return s;
+// ---------------------------------------------------------------------------
+// Passwords
+// ---------------------------------------------------------------------------
+
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  return `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
 }
+
+export function verifyPassword(password: string, hash: string | null): boolean {
+  if (!hash) return false;
+  const [salt, key] = hash.split(":");
+  if (!salt || !key) return false;
+  const a = Buffer.from(key, "hex");
+  const b = scryptSync(password, salt, 64);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ---------------------------------------------------------------------------
+// Legacy PINs — migration bridge only. Nothing new is ever written here.
+// ---------------------------------------------------------------------------
 
 export function hashPin(pin: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -34,20 +55,29 @@ export function verifyPin(pin: string, hash: string | null): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const sign = (value: string) => createHmac("sha256", secret()).update(value).digest("hex").slice(0, 32);
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
 
-export const makeToken = (playerId: number) => `${playerId}.${sign(String(playerId))}`;
+export async function setSessionCookie(playerId: number) {
+  const jar = await cookies();
+  jar.set(COOKIE, await makeSessionToken(playerId), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_DAYS * 24 * 60 * 60,
+  });
+}
 
-export function readToken(token: string | undefined): number | null {
-  if (!token) return null;
-  const [id, sig] = token.split(".");
-  if (!id || !sig) return null;
-  return sign(id) === sig ? Number(id) : null;
+export async function clearSessionCookie() {
+  const jar = await cookies();
+  jar.delete(COOKIE);
 }
 
 /** Who is signed in on this device, if anyone. */
 export async function currentPlayer(): Promise<Player | null> {
   const jar = await cookies();
-  const id = readToken(jar.get(COOKIE)?.value);
-  return id ? getPlayer(id) ?? null : null;
+  const payload = await readSessionToken(jar.get(COOKIE)?.value);
+  return payload ? getPlayer(payload.pid) ?? null : null;
 }

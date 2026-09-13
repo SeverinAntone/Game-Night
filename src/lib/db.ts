@@ -21,7 +21,41 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "games", column: "rated", definition: "INTEGER NOT NULL DEFAULT 1" },
   { table: "sessions", column: "variant", definition: "TEXT" },
   { table: "rating_snapshots", column: "variant", definition: "TEXT NOT NULL DEFAULT ''" },
+  { table: "players", column: "username", definition: "TEXT" },
+  { table: "players", column: "password_hash", definition: "TEXT" },
 ];
+
+/**
+ * Real accounts, added on top of an app that used to trust anyone on the
+ * LAN. Every existing player already has a unique `name` — that becomes
+ * their `username` automatically, so nobody has to be handed a new one.
+ * `password_hash` starts NULL for everybody; that's also how the login route
+ * tells an unmigrated account apart from one that's already set a password
+ * (see app/api/auth/route.ts).
+ */
+function backfillUsernames(db: Database.Database) {
+  const rows = db
+    .prepare("SELECT id, name FROM players WHERE username IS NULL")
+    .all() as { id: number; name: string }[];
+  if (!rows.length) return;
+
+  const taken = new Set(
+    (db.prepare("SELECT username FROM players WHERE username IS NOT NULL").all() as { username: string }[])
+      .map((r) => r.username.toLowerCase()),
+  );
+  const update = db.prepare("UPDATE players SET username = ? WHERE id = ?");
+  for (const { id, name } of rows) {
+    let candidate = name.trim();
+    // `name` was already UNIQUE, so a collision here only happens if two
+    // names differ solely by case (players table's old constraint was
+    // case-sensitive; usernames are compared case-insensitively). Rare for a
+    // home game-night roster, but don't fail the whole boot over it.
+    let n = 2;
+    while (taken.has(candidate.toLowerCase())) candidate = `${name.trim()}${n++}`;
+    taken.add(candidate.toLowerCase());
+    update.run(candidate, id);
+  }
+}
 
 function migrate(db: Database.Database) {
   for (const { table, column, definition } of ADDED_COLUMNS) {
@@ -29,6 +63,12 @@ function migrate(db: Database.Database) {
     if (!cols.length || cols.some((c) => c.name === column)) continue;
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+  backfillUsernames(db);
+  // SQLite can't add a UNIQUE constraint via ALTER TABLE, so the uniqueness
+  // (case-insensitive — §5 of the security notes) lives in an index instead.
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_players_username ON players(username COLLATE NOCASE)",
+  );
 }
 
 function open(): Database.Database {

@@ -14,8 +14,8 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Public columns only — `pin_hash` is deliberately never selected here. */
-const PLAYER_COLUMNS = `id, name, emoji, color, tagline, join_date, active,
-                        (pin_hash IS NOT NULL) AS has_pin`;
+const PLAYER_COLUMNS = `id, name, emoji, color, tagline, username, join_date, active,
+                        (password_hash IS NULL) AS needs_password_setup`;
 
 export const getPlayers = (includeInactive = false) =>
   all<Player>(
@@ -23,12 +23,19 @@ export const getPlayers = (includeInactive = false) =>
       ${includeInactive ? "" : "WHERE active = 1"} ORDER BY name COLLATE NOCASE`,
   );
 
+/** Used only to decide whether /login shows sign-in or first-time setup. */
+export const playerCount = () => get<{ n: number }>("SELECT COUNT(*) AS n FROM players")!.n;
+
 export const getPlayer = (id: number) =>
   get<Player>(`SELECT ${PLAYER_COLUMNS} FROM players WHERE id = ?`, id);
 
-/** Server-only: includes the PIN hash. Never pass the result to a client component. */
+/** Server-only: includes credential hashes. Never pass the result to a client component. */
 export const getPlayerRow = (id: number) =>
   get<PlayerRow>("SELECT * FROM players WHERE id = ?", id);
+
+/** Same as above, looked up by username — case-insensitive, like sign-in always is. */
+export const getPlayerRowByUsername = (username: string) =>
+  get<PlayerRow>("SELECT * FROM players WHERE username = ? COLLATE NOCASE", username);
 
 export const getGames = (includeRetired = false) =>
   all<Game>(

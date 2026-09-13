@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { SessionEntry } from "@/components/SessionEntry";
 import { Empty, PageHeader } from "@/components/ui";
+import { currentPlayer } from "@/lib/auth";
 import { getGames, getPlayers } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default function PlayPage() {
+export default async function PlayPage() {
   const games = getGames();
   const players = getPlayers();
+  const me = await currentPlayer();
 
-  if (!games.length || !players.length)
+  if (!games.length || !players.length || !me)
     return (
       <div className="space-y-4">
         <PageHeader title="Log a session" />
@@ -37,7 +39,7 @@ export default function PlayPage() {
           </Link>
         }
       />
-      <SessionEntry games={games} players={players} />
+      <SessionEntry games={games} players={players} me={me} />
     </div>
   );
 }

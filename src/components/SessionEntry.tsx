@@ -22,7 +22,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar } from "./ui";
-import { useMe } from "./useMe";
+import { gameDayKey } from "@/lib/dates";
 import {
   effectiveConfig,
   gameVariants,
@@ -50,6 +50,7 @@ export function SessionEntry({
   players,
   initial,
   sessionId,
+  me,
 }: {
   games: Game[];
   players: Player[];
@@ -63,9 +64,9 @@ export function SessionEntry({
     rows: { player_id: number; placement: number; score: number | null; tags: string[]; team: string | null }[];
   };
   sessionId?: number;
+  me: Pick<Player, "id">;
 }) {
   const router = useRouter();
-  const [me] = useMe();
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
   const [step, setStep] = useState(initial ? 2 : 0);
@@ -89,9 +90,10 @@ export function SessionEntry({
   const [coopResult, setCoopResult] = useState<"win" | "loss">(initial?.coop_result ?? "win");
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [playedAt, setPlayedAt] = useState(
-    (initial?.played_at ?? new Date().toISOString()).slice(0, 10),
-  );
+  // gameDayKey, not .slice(0, 10): the stored value is UTC, and slicing it
+  // raw shows the wrong calendar day for anyone west of UTC once the date
+  // rolls over — the same bug that showed up on the History tab.
+  const [playedAt, setPlayedAt] = useState(gameDayKey(initial?.played_at ?? new Date().toISOString()));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -191,7 +193,7 @@ export function SessionEntry({
       notes: notes.trim() || null,
       difficulty: game.tracks_difficulty ? difficulty.trim() || null : null,
       coop_result: isCoop ? coopResult : null,
-      logged_by: me?.id ?? null,
+      logged_by: me.id,
       participants: rows.map((r, i) => ({
         player_id: r.player.id,
         placement: isCoop ? 1 : placements[i],

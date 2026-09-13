@@ -10,6 +10,8 @@ export function AddPlayer() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [{ emoji: initialEmoji, color: initialColor }] = useState(randomAvatar);
   const [emoji, setEmoji] = useState(initialEmoji);
   const [color, setColor] = useState(initialColor);
@@ -23,7 +25,14 @@ export function AddPlayer() {
     const res = await fetch("/api/players", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), emoji, color, tagline: tagline.trim() }),
+      body: JSON.stringify({
+        name: name.trim(),
+        username: username.trim(),
+        password,
+        emoji,
+        color,
+        tagline: tagline.trim(),
+      }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -32,6 +41,8 @@ export function AddPlayer() {
       return;
     }
     setName("");
+    setUsername("");
+    setPassword("");
     setTagline("");
     const next = randomAvatar();
     setEmoji(next.emoji);
@@ -63,6 +74,39 @@ export function AddPlayer() {
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label" htmlFor="p-username">
+            Username
+          </label>
+          <input
+            id="p-username"
+            className="input"
+            autoComplete="off"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="p-password">
+            Password
+          </label>
+          <input
+            id="p-password"
+            type="password"
+            className="input"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+          />
+        </div>
+      </div>
+      <p className="-mt-2 text-[11px] text-mist-400">
+        Username isn&apos;t case-sensitive. Password needs 8+ characters — they&apos;ll use these
+        to sign in.
+      </p>
+
       <AvatarPicker emoji={emoji} color={color} onEmoji={setEmoji} onColor={setColor} />
 
       <div>
@@ -84,7 +128,11 @@ export function AddPlayer() {
         <button className="btn-ghost flex-1" onClick={() => setOpen(false)} disabled={busy}>
           Cancel
         </button>
-        <button className="btn-primary flex-1" onClick={add} disabled={busy || !name.trim()}>
+        <button
+          className="btn-primary flex-1"
+          onClick={add}
+          disabled={busy || !name.trim() || !username.trim() || password.length < 8}
+        >
           {busy ? "Adding…" : "Add"}
         </button>
       </div>

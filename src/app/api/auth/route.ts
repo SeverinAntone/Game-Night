@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
-import { COOKIE, currentPlayer, hashPin, makeToken, verifyPin } from "@/lib/auth";
+import {
+  clearSessionCookie,
+  currentPlayer,
+  hashPassword,
+  setSessionCookie,
+  verifyPassword,
+  verifyPin,
+} from "@/lib/auth";
 import { run } from "@/lib/db";
-import { getPlayerRow } from "@/lib/queries";
+import { getPlayerRowByUsername } from "@/lib/queries";
+import type { PlayerRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,34 +18,75 @@ export async function GET() {
   return NextResponse.json({ player: player ? { id: player.id, name: player.name } : null });
 }
 
-/** name + PIN sign-in, for personal actions only (§7). */
+function publicPlayer(p: PlayerRow) {
+  return { id: p.id, name: p.name };
+}
+
+/**
+ * Two sign-in paths live behind this one POST, distinguished by which fields
+ * show up in the body — the login form on /login picks the right one based
+ * on what the server tells it after the first attempt (see LoginForm.tsx):
+ *
+ *   { username, password }              normal sign-in
+ *   { username, pin, new_password }     one-time migration for an account
+ *                                        that only ever had a PIN
+ */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
-  const id = Number(body?.player_id);
-  const pin = String(body?.pin ?? "");
-  const player = getPlayerRow(id);
-  if (!player) return NextResponse.json({ error: "No such player." }, { status: 404 });
+  const username = String(body?.username ?? "").trim();
+  if (!username) return NextResponse.json({ error: "Username is required." }, { status: 400 });
 
-  if (!player.pin_hash) {
-    // First sign-in sets the PIN — nobody has to visit a settings page first.
-    if (pin.length < 4) return NextResponse.json({ error: "Pick a PIN of 4+ digits." }, { status: 400 });
-    run("UPDATE players SET pin_hash = ? WHERE id = ?", hashPin(pin), id);
-  } else if (!verifyPin(pin, player.pin_hash)) {
-    return NextResponse.json({ error: "Wrong PIN." }, { status: 403 });
+  const player = getPlayerRowByUsername(username);
+  // Same generic message either way — a real vs. unknown username shouldn't
+  // be distinguishable from the response.
+  const badCreds = () => NextResponse.json({ error: "Incorrect username or password." }, { status: 401 });
+
+  if (typeof body?.new_password === "string") {
+    // --- Migration: prove the old PIN once, then set a real password. ---
+    if (!player) return badCreds();
+    if (player.password_hash) {
+      return NextResponse.json(
+        { error: "This account already has a password — sign in normally." },
+        { status: 400 },
+      );
+    }
+    const pin = String(body?.pin ?? "");
+    if (!verifyPin(pin, player.pin_hash)) {
+      return NextResponse.json({ error: "Incorrect PIN." }, { status: 403 });
+    }
+    const newPassword = String(body.new_password);
+    if (newPassword.length < 8) {
+      return NextResponse.json({ error: "Password needs to be at least 8 characters." }, { status: 400 });
+    }
+    // pin_hash is cleared, not left around unused — it can't sign anyone in
+    // anymore, so there's no reason to keep a working weak credential on file.
+    run(
+      "UPDATE players SET password_hash = ?, pin_hash = NULL WHERE id = ?",
+      hashPassword(newPassword),
+      player.id,
+    );
+    await setSessionCookie(player.id);
+    return NextResponse.json({ ok: true, player: publicPlayer(player) });
   }
 
-  const res = NextResponse.json({ ok: true, player: { id: player.id, name: player.name } });
-  res.cookies.set(COOKIE, makeToken(player.id), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 120,
-  });
-  return res;
+  // --- Normal sign-in ---
+  const password = String(body?.password ?? "");
+  if (!player) return badCreds();
+
+  if (!player.password_hash) {
+    // Account predates real passwords — tell the client to switch to the
+    // migration flow instead of quietly failing a password check that was
+    // never going to succeed.
+    return NextResponse.json({ error: "needs_migration", needsMigration: true }, { status: 409 });
+  }
+
+  if (!verifyPassword(password, player.password_hash)) return badCreds();
+
+  await setSessionCookie(player.id);
+  return NextResponse.json({ ok: true, player: publicPlayer(player) });
 }
 
 export async function DELETE() {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.delete(COOKIE);
-  return res;
+  await clearSessionCookie();
+  return NextResponse.json({ ok: true });
 }

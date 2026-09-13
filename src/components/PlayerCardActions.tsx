@@ -4,39 +4,34 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AvatarPicker } from "./AvatarPicker";
-import { useMe } from "./useMe";
 import type { Player } from "@/lib/types";
 
-/** Personal actions on a profile — gated by the name+PIN identity (§7). */
-export function PlayerCardActions({
-  player,
-  isMe,
-  hasPin,
-}: {
-  player: Player;
-  isMe: boolean;
-  hasPin: boolean;
-}) {
+/** Personal actions on a profile — only the account itself can edit it. */
+export function PlayerCardActions({ player, isMe }: { player: Player; isMe: boolean }) {
   const router = useRouter();
-  const [, setCasual] = useMe();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(player.name);
   const [emoji, setEmoji] = useState(player.emoji);
   const [color, setColor] = useState(player.color);
   const [tagline, setTagline] = useState(player.tagline ?? "");
   const [active, setActive] = useState(!!player.active);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const canEdit = isMe || !hasPin;
 
   async function save() {
     setBusy(true);
     setError(null);
+    const body: Record<string, unknown> = { name, emoji, color, tagline, active };
+    if (newPassword) {
+      body.current_password = currentPassword;
+      body.password = newPassword;
+    }
     const res = await fetch(`/api/players/${player.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, emoji, color, tagline, active }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -45,34 +40,22 @@ export function PlayerCardActions({
       return;
     }
     setEditing(false);
+    setCurrentPassword("");
+    setNewPassword("");
     router.refresh();
   }
+
+  if (!isMe) return null;
 
   if (!editing)
     return (
       <div className="flex flex-wrap gap-2">
-        <button
-          className="btn-ghost"
-          onClick={() =>
-            setCasual({ id: player.id, name: player.name, emoji: player.emoji, color: player.color })
-          }
-        >
-          This is me
+        <button className="btn-ghost" onClick={() => setEditing(true)}>
+          Edit profile
         </button>
-        {canEdit ? (
-          <button className="btn-ghost" onClick={() => setEditing(true)}>
-            Edit profile
-          </button>
-        ) : (
-          <Link href="/identity" className="btn-ghost">
-            Sign in to edit
-          </Link>
-        )}
-        {isMe && (
-          <Link href="/draft" className="btn-ghost">
-            ⚔️ Game Draft
-          </Link>
-        )}
+        <Link href="/draft" className="btn-ghost">
+          ⚔️ Game Draft
+        </Link>
       </div>
     );
 
@@ -105,12 +88,40 @@ export function PlayerCardActions({
         />
         Still shows up to game night
       </label>
+
+      <div className="border-t border-white/8 pt-3">
+        <p className="label mb-2">Change password (optional)</p>
+        <div className="space-y-2">
+          <input
+            type="password"
+            className="input"
+            placeholder="Current password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+          <input
+            type="password"
+            className="input"
+            placeholder="New password (8+ characters)"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            minLength={8}
+          />
+        </div>
+      </div>
+
       {error && <p className="text-sm text-rose-brand">{error}</p>}
       <div className="flex gap-2">
         <button className="btn-ghost flex-1" onClick={() => setEditing(false)} disabled={busy}>
           Cancel
         </button>
-        <button className="btn-primary flex-1" onClick={save} disabled={busy}>
+        <button
+          className="btn-primary flex-1"
+          onClick={save}
+          disabled={busy || (!!newPassword && (newPassword.length < 8 || !currentPassword))}
+        >
           {busy ? "Saving…" : "Save"}
         </button>
       </div>

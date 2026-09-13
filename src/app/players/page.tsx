@@ -22,7 +22,7 @@ export default function PlayersPage() {
         <Empty
           icon="🃏"
           title="No players yet"
-          body="Add everyone who shows up. A name and an emoji is enough — PINs only matter for personal pages."
+          body="Add everyone who shows up. Each person gets their own username and password to sign in with."
         />
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2">
@@ -37,6 +37,11 @@ export default function PlayersPage() {
                     <div className="flex items-center gap-2">
                       <span className="truncate font-semibold">{p.name}</span>
                       {!p.active && <span className="chip px-1.5 py-0 text-[10px]">inactive</span>}
+                      {!!p.needs_password_setup && (
+                        <span className="chip px-1.5 py-0 text-[10px] text-amber-300">
+                          needs password
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1">
                       <TierBadge tier={tierForComposite(c?.composite ?? 0, !!c?.ranked)} small />

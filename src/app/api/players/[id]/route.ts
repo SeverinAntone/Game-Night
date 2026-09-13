@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentPlayer, hashPin, verifyPin } from "@/lib/auth";
+import { currentPlayer, hashPassword, verifyPassword } from "@/lib/auth";
 import { run } from "@/lib/db";
 import { getPlayerRow } from "@/lib/queries";
 
@@ -12,12 +12,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const player = getPlayerRow(id);
   if (!player) return NextResponse.json({ error: "No such player." }, { status: 404 });
 
-  // Editing a profile is a personal action: it needs the PIN identity (§7).
-  // Players who have not set a PIN yet are open to anyone on the LAN — which is
-  // the point of "no auth on a trusted home network".
+  // Every request already reached here signed in as someone (middleware.ts
+  // guarantees that) — editing a profile just requires being that person.
   const signedIn = await currentPlayer();
-  if (player.pin_hash && signedIn?.id !== id)
-    return NextResponse.json({ error: "Sign in as this player first." }, { status: 403 });
+  if (signedIn?.id !== id)
+    return NextResponse.json({ error: "You can only edit your own profile." }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const fields: string[] = [];
@@ -34,10 +33,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (typeof body.tagline === "string") set("tagline", body.tagline.slice(0, 120) || null);
   if (typeof body.active === "boolean") set("active", body.active ? 1 : 0);
 
-  if (typeof body.pin === "string" && body.pin) {
-    if (player.pin_hash && !verifyPin(String(body.current_pin ?? ""), player.pin_hash))
-      return NextResponse.json({ error: "Current PIN is wrong." }, { status: 403 });
-    set("pin_hash", hashPin(body.pin));
+  if (typeof body.password === "string" && body.password) {
+    if (!verifyPassword(String(body.current_password ?? ""), player.password_hash))
+      return NextResponse.json({ error: "Current password is wrong." }, { status: 403 });
+    if (body.password.length < 8)
+      return NextResponse.json({ error: "New password needs to be at least 8 characters." }, { status: 400 });
+    set("password_hash", hashPassword(body.password));
   }
 
   if (!fields.length) return NextResponse.json({ ok: true });

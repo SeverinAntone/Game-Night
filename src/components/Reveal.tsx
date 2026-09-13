@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, MEDALS, ordinalSuffix } from "./ui";
+import { formatGameDateLong } from "@/lib/dates";
 import type { Reveal as RevealData } from "@/lib/sessions";
 
 /**
@@ -44,11 +45,7 @@ export function RevealScreen({ data }: { data: RevealData }) {
               {data.game.name}
             </Link>
             <div className="text-xs text-mist-400">
-              {new Date(data.session.played_at).toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-              })}
+              {formatGameDateLong(data.session.played_at)}
               {data.session.difficulty ? ` · difficulty ${data.session.difficulty}` : ""}
             </div>
           </div>

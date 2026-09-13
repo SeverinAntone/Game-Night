@@ -67,7 +67,7 @@ export function NavTabs() {
 }
 
 /** Persistent side rail — tablets and desktop. */
-export function NavRail() {
+export function NavRail({ player }: { player: { name: string } | null }) {
   const pathname = usePathname();
   return (
     <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 py-8 md:flex">
@@ -92,7 +92,7 @@ export function NavRail() {
         );
       })}
       <div className="mt-auto">
-        <WhoAmI />
+        <WhoAmI player={player} />
       </div>
     </aside>
   );
