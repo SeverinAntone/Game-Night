@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { getDb, nowIso } from "./db";
 import { displayed, newRating, rateTeams, type Skill } from "./rating";
 import {
@@ -7,6 +9,8 @@ import {
   type GameSession,
   type Participant,
 } from "./types";
+
+const DATA_DIR = process.env.BGN_DATA_DIR ?? path.join(process.cwd(), "data");
 
 /**
  * Full sequential replay of every session in chronological order (design doc §9).
@@ -230,4 +234,61 @@ export function replayRatings(): { sessions: number; snapshots: number } {
     }
     return { sessions: sessions.length, snapshots };
   })();
+}
+
+/**
+ * Bumped whenever the rating *formula* changes (not the engine, not the
+ * schema) — a change that leaves every stored `mu`/`sigma` untouched but
+ * makes every stored `displayed_rating`/`displayed_before` wrong, because
+ * those are columns, not something computed at read time. `"2-skill-only"`
+ * is the move from the conservative mu-3*sigma estimate to mu alone (see
+ * rating.ts's `displayed()`).
+ */
+const RATING_FORMULA_VERSION = "2-skill-only";
+
+/**
+ * Runs {@link replayRatings} exactly once per formula version, on server
+ * startup — see `src/instrumentation.ts`, the only intended caller.
+ *
+ * This deliberately does NOT live inside `getDb()`/`migrate()`/`open()` in
+ * db.ts. Those assign `g.__bgn_db` only after `open()` returns, and
+ * `replayRatings()` calls `getDb()` internally — calling this from inside
+ * that chain would re-enter `open()` before the global is set, recursing
+ * forever. Calling it from instrumentation's `register()`, after the module
+ * graph is fully loaded and `getDb()` can return cleanly, sidesteps that.
+ *
+ * Replay is a pure function of the session log (see the file header above),
+ * so re-running it is always lossless — the version stamp in `meta` exists
+ * purely to make this a no-op on every boot after the first, not because a
+ * second replay would be unsafe.
+ */
+export async function ensureRatingFormulaCurrent(): Promise<void> {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'rating_formula_version'").get() as
+    | { value: string }
+    | undefined;
+  if (row?.value === RATING_FORMULA_VERSION) return;
+
+  // Cheap insurance on a destructive-looking operation — replayRatings()
+  // deletes every row of rating_snapshots before rebuilding it. Same backup
+  // mechanism the admin "backup" action uses (src/app/api/admin/route.ts).
+  const dir = path.join(DATA_DIR, "backups");
+  fs.mkdirSync(dir, { recursive: true });
+  const backupFile = path.join(
+    dir,
+    `boardgames-pre-${RATING_FORMULA_VERSION}-${nowIso().replace(/[:.]/g, "-")}.db`,
+  );
+  await db.backup(backupFile);
+  console.log(`[rating-formula] backed up database to ${backupFile} before restating ratings`);
+
+  const result = replayRatings();
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES ('rating_formula_version', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(RATING_FORMULA_VERSION);
+
+  console.log(
+    `[rating-formula] restated all ratings for formula "${RATING_FORMULA_VERSION}": ` +
+      `${result.sessions} sessions -> ${result.snapshots} rating rows`,
+  );
 }

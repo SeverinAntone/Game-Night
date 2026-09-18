@@ -3,7 +3,7 @@ import { TierLadder, type LadderEntry } from "@/components/TierLadder";
 import { Sparkline } from "@/components/charts";
 import { Avatar, Empty, MEDALS, PageHeader, TierBadge } from "@/components/ui";
 import { gameLeaderboard, getGames, overallComposite, trajectory } from "@/lib/queries";
-import { tierFor, tierForComposite } from "@/lib/rating";
+import { tierFor, tierForComposite, uncertaintyBand } from "@/lib/rating";
 import { effectiveConfig, gameVariants } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -189,12 +189,12 @@ export default async function LeaderboardPage({
                     <div className="hidden sm:block">
                       <Sparkline values={traj} />
                     </div>
-                    <div className="text-right">
+                    <div className="text-right" title="How confident we are in this rating. Narrows as you play more games.">
                       <div className="font-display text-lg font-extrabold tabular-nums">
                         {Math.round(r.rating)}
                       </div>
                       <div className="text-[11px] tabular-nums text-mist-400">
-                        ±{Math.round(r.sigma * 40)}
+                        ±{uncertaintyBand({ mu: r.mu, sigma: r.sigma })}
                       </div>
                     </div>
                   </Link>
@@ -281,8 +281,9 @@ export default async function LeaderboardPage({
         <div className="mt-3 space-y-2 text-[13px] leading-relaxed">
           <p>
             Each game keeps its own OpenSkill rating per player: a skill estimate (μ) and an
-            uncertainty (σ). The number shown is deliberately conservative — roughly μ minus three
-            σ — so a new or rusty player reads humble rather than wildly optimistic.
+            uncertainty (σ). The number shown is μ alone, scaled up to read like a familiar
+            4-digit score. The smaller ± number next to it is σ — how confident the system is in
+            that estimate. It narrows as you play more games, but never changes the score itself.
           </p>
           <p>
             Only finishing order feeds the engine. Scores are stored for personal bests and

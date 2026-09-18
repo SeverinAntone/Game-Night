@@ -20,7 +20,13 @@ import {
   winRateByPlayerCount,
 } from "@/lib/queries";
 import { TierProgress } from "@/components/TierLadder";
-import { PROVISIONAL_PLAYS, compositeTierProgress, tierFor, tierForComposite } from "@/lib/rating";
+import {
+  PROVISIONAL_PLAYS,
+  compositeTierProgress,
+  tierFor,
+  tierForComposite,
+  uncertaintyBand,
+} from "@/lib/rating";
 
 export const dynamic = "force-dynamic";
 
@@ -189,8 +195,16 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold">{r.game!.name}</span>
                   <TierBadge tier={tierFor(r.displayed_rating, r.plays)} small />
                   <span className="hidden text-[11px] text-mist-400 sm:inline">{r.plays} plays</span>
-                  <span className="w-14 text-right font-display font-extrabold tabular-nums">
-                    {Math.round(r.displayed_rating)}
+                  <span
+                    className="w-20 text-right"
+                    title="How confident we are in this rating. Narrows as you play more games."
+                  >
+                    <span className="font-display font-extrabold tabular-nums">
+                      {Math.round(r.displayed_rating)}
+                    </span>
+                    <span className="ml-1 text-[11px] tabular-nums text-mist-400">
+                      ±{uncertaintyBand({ mu: r.mu, sigma: r.sigma })}
+                    </span>
                   </span>
                 </Link>
               </li>
