@@ -20,13 +20,7 @@ import {
   winRateByPlayerCount,
 } from "@/lib/queries";
 import { TierProgress } from "@/components/TierLadder";
-import {
-  PROVISIONAL_PLAYS,
-  compositeTierProgress,
-  tierFor,
-  tierForComposite,
-  uncertaintyBand,
-} from "@/lib/rating";
+import { compositeTierProgress, tierFor, tierForComposite, uncertaintyBand } from "@/lib/rating";
 
 export const dynamic = "force-dynamic";
 

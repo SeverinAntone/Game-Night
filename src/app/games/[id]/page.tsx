@@ -15,6 +15,7 @@ import {
   trajectory,
   variantPlayCounts,
 } from "@/lib/queries";
+import { PROVISIONAL_PLAYS } from "@/lib/rating";
 import { SCORING_MODE_LABELS, gameVariants, tagPool } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,9 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
   if (!game) notFound();
 
   const board = gameLeaderboard(id);
+  // Nobody in this pool has enough plays to trust the order yet — see the
+  // Golf case: identical results in a different order flip who's "1st".
+  const boardAllProvisional = board.length > 0 && board.every((r) => r.provisional);
   const sessions = getSessions(12, id);
   const partsBySession = getParticipantsForSessions(sessions.map((s) => s.id));
   const scores = game.tracks_score ? highScores(id, 8) : [];
@@ -138,12 +142,19 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
           {board.length === 0 ? (
             <Empty icon="📉" title="No ratings yet" body="Log a session to start the pool." action={{ href: "/play", label: "Log a session" }} />
           ) : (
-            <ol className="space-y-2">
+            <>
+              {boardAllProvisional && (
+                <p className="card px-4 py-3 text-xs text-mist-400">
+                  Everyone here is still under {PROVISIONAL_PLAYS} plays — too early to call this a
+                  ranking. Ratings below are real; the podium isn&apos;t, yet.
+                </p>
+              )}
+              <ol className="space-y-2">
               {board.slice(0, 6).map((r, i) => (
                 <li key={r.player.id}>
                   <Link href={`/players/${r.player.id}`} className="card card-hover flex items-center gap-3 p-3">
                     <span className="w-6 text-center font-display font-extrabold tabular-nums text-mist-400">
-                      {MEDALS[i] ?? i + 1}
+                      {boardAllProvisional ? "•" : (MEDALS[i] ?? i + 1)}
                     </span>
                     <Avatar emoji={r.player.emoji} color={r.player.color} size={34} />
                     <div className="min-w-0 flex-1">
@@ -161,7 +172,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
                   </Link>
                 </li>
               ))}
-            </ol>
+              </ol>
+            </>
           )}
 
           {series.some((s) => s.points.length > 1) && (

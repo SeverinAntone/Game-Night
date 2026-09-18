@@ -22,6 +22,9 @@ export default function Home() {
   const sessions = getSessions(6);
   const partsBySession = getParticipantsForSessions(sessions.map((s) => s.id));
   const composite = overallComposite().filter((c) => c.ranked).slice(0, 3);
+  // Same rule as the leaderboard: don't hand out a podium for a table where
+  // nobody has enough plays anywhere to actually trust the order.
+  const compositeAllProvisional = composite.length > 0 && composite.every((c) => c.provisional);
   const improved = mostImproved(90, 3);
   const upsets = biggestUpsets(1);
   const heat = nightHeatmap(200);
@@ -89,11 +92,16 @@ export default function Home() {
               Full leaderboard →
             </Link>
           </div>
+          {compositeAllProvisional && (
+            <p className="card mb-2 px-4 py-3 text-xs text-mist-400">
+              Too early to call this a ranking — nobody has enough plays anywhere yet.
+            </p>
+          )}
           <ul className="grid gap-2 sm:grid-cols-3">
             {composite.map((c, i) => (
               <li key={c.player.id}>
                 <Link href={`/players/${c.player.id}`} className="card card-hover flex items-center gap-3 p-3">
-                  <span className="text-xl">{MEDALS[i]}</span>
+                  <span className="text-xl">{compositeAllProvisional ? "•" : MEDALS[i]}</span>
                   <Avatar emoji={c.player.emoji} color={c.player.color} size={36} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{c.player.name}</span>

@@ -1,5 +1,12 @@
 import { all, get } from "./db";
-import { displayed, newRating, PROVISIONAL_PLAYS, tierFor, type Skill } from "./rating";
+import {
+  COMPOSITE_MIN_PLAYS,
+  displayed,
+  newRating,
+  PROVISIONAL_PLAYS,
+  tierFor,
+  type Skill,
+} from "./rating";
 import {
   parseTags,
   type Game,
@@ -304,6 +311,13 @@ export interface CompositeRow {
   totalPlays: number;
   wins: number;
   ranked: boolean;
+  /**
+   * True when every qualifying game is still below the display-gating
+   * threshold — i.e. nothing behind this composite is established enough to
+   * show a real tier badge yet. Used to decide whether a podium of these
+   * composites is presenting a settled ranking or just an early guess.
+   */
+  provisional: boolean;
 }
 
 export function overallComposite(): CompositeRow[] {
@@ -340,7 +354,7 @@ export function overallComposite(): CompositeRow[] {
       for (const r of ratings) {
         if (r.player_id !== player.id) continue;
         const plays = counts.get(`${player.id}|${r.game_id}`) ?? 0;
-        if (plays < PROVISIONAL_PLAYS) continue; // §4: 3+ plays to qualify
+        if (plays < COMPOSITE_MIN_PLAYS) continue; // §4: 3+ plays to qualify
         const st = stats.get(r.game_id);
         const pool = byGame.get(r.game_id) ?? [];
         if (!st || pool.length < 2) continue;
@@ -365,6 +379,7 @@ export function overallComposite(): CompositeRow[] {
         totalPlays: t?.n ?? 0,
         wins: t?.w ?? 0,
         ranked: qualifying.length > 0,
+        provisional: qualifying.every((g) => g.plays < PROVISIONAL_PLAYS),
       } satisfies CompositeRow;
     })
     .sort((a, b) => Number(b.ranked) - Number(a.ranked) || b.composite - a.composite);
@@ -430,12 +445,14 @@ export function playerStats(playerId: number): PlayerStats {
   for (const [id, v] of gameCounts)
     if (!favorite || v.plays > favorite.plays) favorite = { id, name: v.name, plays: v.plays };
 
-  // Best game = highest displayed rating among non-provisional pools.
+  // Best game = highest displayed rating among pools that qualify for the
+  // composite (COMPOSITE_MIN_PLAYS) — same bar as overallComposite(), not the
+  // higher display-gating threshold that decides whether a tier badge shows.
   const counts = playCounts();
   let best: PlayerStats["bestGame"] = null;
   for (const r of currentRatings(undefined, "")) {
     if (r.player_id !== playerId) continue;
-    if ((counts.get(`${playerId}|${r.game_id}`) ?? 0) < PROVISIONAL_PLAYS) continue;
+    if ((counts.get(`${playerId}|${r.game_id}`) ?? 0) < COMPOSITE_MIN_PLAYS) continue;
     if (!best || r.displayed_rating > best.rating) {
       const g = getGame(r.game_id);
       best = { id: r.game_id, name: g?.name ?? "?", rating: r.displayed_rating };

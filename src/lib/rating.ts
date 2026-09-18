@@ -18,8 +18,43 @@ import { rating, rate, predictWin } from "openskill";
 export const BASE_MU = 25;
 export const BASE_SIGMA = 25 / 3;
 export const DISPLAY_SCALE = 40;
-/** Plays needed in a pool before a rating stops being provisional. */
-export const PROVISIONAL_PLAYS = 3;
+
+/**
+ * Plays needed in a pool before a rating shows a real tier badge instead of
+ * "Shrinkwrapped" — display gating only. This used to also gate whether a
+ * game counted toward a player's composite, but those are different
+ * questions ("do we trust this enough to show it off" vs. "does it count at
+ * all") and were forced to move in lockstep purely because they shared a
+ * constant. See {@link COMPOSITE_MIN_PLAYS} for the qualification threshold.
+ */
+export const PROVISIONAL_PLAYS = 8;
+
+/**
+ * Plays needed in a pool before it counts toward a player's overall
+ * composite (§4) and can be their `bestGame`. Kept deliberately separate
+ * from {@link PROVISIONAL_PLAYS}: the live database's most-played pool has
+ * 7 plays, so if this tracked the display threshold, raising that to 8 would
+ * silently empty the entire composite leaderboard.
+ */
+export const COMPOSITE_MIN_PLAYS = 3;
+
+/**
+ * Lower bound on `sigma`. Left unbounded, sigma decays forever and each
+ * rating update shrinks toward nothing — a player who genuinely improves
+ * eventually can't move their rating. The floor guarantees two evenly
+ * matched players always have at least ~10 display points at stake, in any
+ * field size, for as long as they keep playing.
+ *
+ * A side effect: `uncertaintyBand()` bottoms out at ±80 and never reads
+ * tighter than that. That's intentional, not a bug — if the system only
+ * ever moves someone ~12-13 points a game, it genuinely isn't more certain
+ * than that.
+ *
+ * This is long-horizon insurance, not a fix for existing data: sigma only
+ * reaches 2.0 after roughly 200 plays in a single pool, and the most-played
+ * pool in the live database currently has 7.
+ */
+export const MIN_SIGMA = 2.0;
 
 export type Skill = { mu: number; sigma: number };
 
@@ -40,7 +75,7 @@ export function rateTeams(teams: Skill[][], ranks: number[]): Skill[][] {
     teams.map((t) => t.map((r) => rating(r))),
     { rank: ranks },
   );
-  return out.map((t) => t.map((r) => ({ mu: r.mu, sigma: r.sigma })));
+  return out.map((t) => t.map((r) => ({ mu: r.mu, sigma: Math.max(r.sigma, MIN_SIGMA) })));
 }
 
 /** Probability that team A beats team B — used for the "upset alert" (§10). */

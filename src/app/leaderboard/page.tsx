@@ -3,7 +3,7 @@ import { TierLadder, type LadderEntry } from "@/components/TierLadder";
 import { Sparkline } from "@/components/charts";
 import { Avatar, Empty, MEDALS, PageHeader, TierBadge } from "@/components/ui";
 import { gameLeaderboard, getGames, overallComposite, trajectory } from "@/lib/queries";
-import { tierFor, tierForComposite, uncertaintyBand } from "@/lib/rating";
+import { PROVISIONAL_PLAYS, tierFor, tierForComposite, uncertaintyBand } from "@/lib/rating";
 import { effectiveConfig, gameVariants } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +38,12 @@ export default async function LeaderboardPage({
   const rows = game ? gameLeaderboard(game.id, tag, poolVariant) : [];
   const composite = game ? [] : overallComposite();
   const variantQS = variant ? `&variant=${encodeURIComponent(variant)}` : "";
+  // Nobody in this pool has enough plays to trust the order yet — a podium
+  // here would present a coin-flip as a settled result (see the Golf case).
+  const allProvisional = rows.length > 0 && rows.every((r) => r.provisional);
+  const rankedComposite = composite.filter((c) => c.ranked);
+  const allCompositeProvisional =
+    rankedComposite.length > 0 && rankedComposite.every((c) => c.provisional);
 
   const ladder: LadderEntry[] = game
     ? rows.map((r) => ({
@@ -158,7 +164,14 @@ export default async function LeaderboardPage({
             action={{ href: "/play", label: "Log a session" }}
           />
         ) : (
-          <ol className="space-y-2">
+          <>
+            {allProvisional && (
+              <p className="card px-4 py-3 text-xs text-mist-400">
+                Everyone here is still under {PROVISIONAL_PLAYS} plays — too early to call this a
+                ranking. Ratings and ± bands below are real; the podium isn&apos;t, yet.
+              </p>
+            )}
+            <ol className="space-y-2">
             {rows.map((r, i) => {
               const traj = trajectory(r.player.id, game.id, tag, poolVariant)
                 .slice(-12)
@@ -167,7 +180,7 @@ export default async function LeaderboardPage({
                 <li key={r.player.id}>
                   <Link href={`/players/${r.player.id}`} className="card card-hover flex items-center gap-3 p-3">
                     <span className="w-7 text-center font-display text-base font-extrabold tabular-nums text-mist-400">
-                      {MEDALS[i] ?? i + 1}
+                      {allProvisional ? "•" : (MEDALS[i] ?? i + 1)}
                     </span>
                     <Avatar emoji={r.player.emoji} color={r.player.color} size={38} />
                     <div className="min-w-0 flex-1">
@@ -201,7 +214,8 @@ export default async function LeaderboardPage({
                 </li>
               );
             })}
-          </ol>
+            </ol>
+          </>
         )
       ) : composite.filter((c) => c.ranked).length === 0 ? (
         <Empty
@@ -211,7 +225,14 @@ export default async function LeaderboardPage({
           action={{ href: "/play", label: "Log a session" }}
         />
       ) : (
-        <ol className="space-y-2">
+        <>
+          {allCompositeProvisional && (
+            <p className="card px-4 py-3 text-xs text-mist-400">
+              Nobody has {PROVISIONAL_PLAYS}+ plays in any single game yet — too early to call this
+              a ranking. Composites below are real; the podium isn&apos;t, yet.
+            </p>
+          )}
+          <ol className="space-y-2">
           {composite
             .filter((c) => c.ranked)
             .map((c, i) => (
@@ -219,7 +240,7 @@ export default async function LeaderboardPage({
                 <Link href={`/players/${c.player.id}`} className="card card-hover block p-3">
                   <div className="flex items-center gap-3">
                     <span className="w-7 text-center font-display text-base font-extrabold tabular-nums text-mist-400">
-                      {MEDALS[i] ?? i + 1}
+                      {allCompositeProvisional ? "•" : (MEDALS[i] ?? i + 1)}
                     </span>
                     <Avatar emoji={c.player.emoji} color={c.player.color} size={38} />
                     <div className="min-w-0 flex-1">
@@ -260,7 +281,8 @@ export default async function LeaderboardPage({
                 </Link>
               </li>
             ))}
-        </ol>
+          </ol>
+        </>
       )}
 
       {!game && composite.some((c) => !c.ranked) && (
@@ -296,7 +318,7 @@ export default async function LeaderboardPage({
           </p>
           <p>Pure co-op games never affect anyone&apos;s rating. There&apos;s no opposing skill to measure.</p>
           <p>
-            Tiers: {tierFor(0, 0).emoji} Shrinkwrapped (under 3 plays) → 🧃 Cardboard Cadet → 🚶
+            Tiers: {tierFor(0, 0).emoji} Shrinkwrapped (under {PROVISIONAL_PLAYS} plays) → 🧃 Cardboard Cadet → 🚶
             Meeple Mover → ⚖️ Rules Lawyer → ⚙️ Engine Builder → 🪄 Combo Merchant → 👑 Table
             Tyrant → 🛸 Cardboard Deity.
           </p>
